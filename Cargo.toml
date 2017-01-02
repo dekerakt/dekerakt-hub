@@ -8,7 +8,12 @@ authors = [
 
 [dependencies]
 futures = "0.1.6"
+
 tokio-core = "0.1"
 tokio-proto = { git = "https://github.com/tokio-rs/tokio-proto" }
 tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
+
+slog = "1.4"
+slog-scope = "0.2"
+slog-term = "1.3"
 
