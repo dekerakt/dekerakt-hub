@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 pub enum Message {
     Error {
         description: String
@@ -6,7 +8,7 @@ pub enum Message {
         user: String,
         password: String,
         connectionMode: ConnectionMode,
-        pingInterval: std::time::Duration
+        pingInterval: Duration
     },
     AuthServer {
         authResult: AuthResult,
@@ -102,4 +104,47 @@ pub enum Message {
     Pong {
         pong: u64
     }
+}
+
+pub enum ConnectionMode {
+    GpuKbd = 0x00,
+    Gpu = 0x01,
+    Kbd = 0x02,
+    Custom = 0x03
+}
+
+pub enum AuthResult {
+    Authenticated = 0x00,
+    BadCredentials = 0x01,
+    UnsupportedMode = 0x02
+}
+
+pub struct ScreenResolution {
+    width: u8,
+    height: u8
+}
+
+pub struct Palette {
+    colors: Vec<u32>
+}
+
+pub enum ScreenState {
+    On = 0xff,
+    Off = 0x00
+}
+
+pub enum PreciseMode {
+    Precise = 0xff,
+    Imprecise = 0x00
+}
+
+pub struct Char {
+    fgIdx: u8,
+    bgIdx: u8,
+    char: char
+}
+
+pub enum Direction {
+    Up = 0xff,
+    Down = 0x00
 }

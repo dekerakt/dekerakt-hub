@@ -3,6 +3,8 @@ extern crate tokio_service;
 extern crate tokio_proto;
 extern crate tokio_core;
 
+mod messages;
+
 use std::env;
 use std::{io, str};
 
