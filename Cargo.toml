@@ -10,4 +10,5 @@ authors = [
 futures = "0.1.6"
 tokio-core = "0.1"
 tokio-proto = { git = "https://github.com/tokio-rs/tokio-proto" }
+tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
 
