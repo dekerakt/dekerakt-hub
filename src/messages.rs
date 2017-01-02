@@ -7,27 +7,27 @@ pub enum Message {
     AuthClient {
         user: String,
         password: String,
-        connectionMode: ConnectionMode,
-        pingInterval: Duration
+        connection_mode: ConnectionMode,
+        ping_interval: Duration
     },
     AuthServer {
-        authResult: AuthResult,
-        displayMessage: String
+        auth_result: AuthResult,
+        display_message: String
     },
     InitialData {
         palette: Palette,
-        fgIdx: u8,
-        bgIdx: u8,
+        fg_idx: u8,
+        bg_idx: u8,
         resolution: ScreenResolution,
-        screenState: ScreenState,
-        preciseMode: PreciseMode,
+        screen_state: ScreenState,
+        precise_mode: PreciseMode,
         chars: Vec<Char>
     },
     SetBG {
-        idx: u8
+        index: u8
     },
     SetFG {
-        idx: u8
+        index: u8
     },
     SetPalette {
         r: u8,
@@ -42,7 +42,7 @@ pub enum Message {
         x: u8,
         y: u8,
         chars: String,
-        isVertical: bool
+        vertical: bool
     },
     Copy {
         x: u8,
@@ -60,10 +60,10 @@ pub enum Message {
         charCode: u32
     },
     SetScreenState {
-        screenState: ScreenState
+        screen_state: ScreenState
     },
     SetPrecise {
-        preciseMode: PreciseMode
+        precise_mode: PreciseMode
     },
     Fetch,
     EventTouch {
@@ -88,12 +88,12 @@ pub enum Message {
         delta: u8
     },
     EventKeyDown {
-        charCode: u32,
-        lwjglCode: u32
+        char_code: u32,
+        lwjgl_code: u32
     },
     EventKeyUp {
-        charCode: u32,
-        lwjglCode: u32
+        char_code: u32,
+        lwjgl_code: u32
     },
     EventClipboard {
         data: String
@@ -139,8 +139,8 @@ pub enum PreciseMode {
 }
 
 pub struct Char {
-    fgIdx: u8,
-    bgIdx: u8,
+    fg_idx: u8,
+    bg_idx: u8,
     char: char
 }
 
