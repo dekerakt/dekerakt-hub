@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+#[derive(PartialEq)]
 pub struct Color {
     r: u8,
     g: u8,
@@ -63,6 +64,30 @@ impl Palette {
             } else {
                 self.colors.push(color);
             }
+        }
+    }
+
+    pub fn color2index(&self, color: Color) -> u8 {
+        if let Some(idx) = self.colors.iter().position(|x| *x == color) {
+            return idx as u8;
+        }
+        let idxR: i32 = ((color.r as f32) * 5.0f32 / 255.0f32 + 0.5f32) as i32;
+        let idxG: i32 = ((color.g as f32) * 7.0f32 / 255.0f32 + 0.5f32) as i32;
+        let idxB: i32 = ((color.b as f32) * 4.0f32 / 255.0f32 + 0.5f32) as i32;
+        let idx = 16 + idxR * 8 * 5 + idxG * 5 + idxB;
+        let mut minDelta = color.delta(&self[0]);
+        let mut minDIdx = 0;
+        for i in 1..16 {
+            let delta = color.delta(&self[i]);
+            if delta < minDelta {
+                minDelta = delta;
+                minDIdx = i;
+            }
+        }
+        if color.delta(&self[idx as usize]) < minDelta {
+            idx as u8
+        } else {
+            minDIdx as u8
         }
     }
 }
