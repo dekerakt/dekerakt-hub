@@ -1,0 +1,10 @@
+[package]
+name = "dekerakt-hub"
+version = "0.1.0"
+authors = [
+  "LeshaInc <includeurl@gmail.com>",
+  "Alexander (Fingercomp) <binbin226@gmail.com>"
+]
+
+[dependencies]
+
