@@ -8,11 +8,11 @@ pub struct Color {
 }
 
 impl Color {
-    fn rgb(&self) -> u32 {
+    pub fn rgb(&self) -> u32 {
         (self.r as u32) << 16 | (self.g as u32) << 8 | (self.b as u32)
     }
 
-    fn delta(&self, other: &Color) -> f32 {
+    pub fn delta(&self, other: &Color) -> f32 {
         let dr = (self.r as f32) - (other.r as f32);
         let dg = (self.g as f32) - (other.g as f32);
         let db = (self.b as f32) - (other.b as f32);
@@ -34,7 +34,7 @@ impl Palette {
         palette
     }
 
-    fn generate_shades(&mut self) {
+    pub fn generate_shades(&mut self) {
         for i in 0..16 {
             let shade: u8 = 0xff * (i + 1) / 17;
             let color = Color {
@@ -50,7 +50,7 @@ impl Palette {
         }
     }
 
-    fn generate_palette(&mut self) {
+    pub fn generate_palette(&mut self) {
         for i in 0..240 {
             let r = i % 6;
             let g = (i / 6) % 8;
