@@ -1,3 +1,5 @@
+use graphics;
+
 use std::time::Duration;
 
 pub enum Message {
@@ -15,7 +17,7 @@ pub enum Message {
         display_message: String
     },
     InitialData {
-        palette: Palette,
+        palette: graphics::Palette,
         fg_idx: u8,
         bg_idx: u8,
         resolution: ScreenResolution,
@@ -57,7 +59,7 @@ pub enum Message {
         y: u8,
         w: u8,
         h: u8,
-        charCode: u32
+        char_code: u32
     },
     SetScreenState {
         screen_state: ScreenState
@@ -122,10 +124,6 @@ pub enum AuthResult {
 pub struct ScreenResolution {
     width: u8,
     height: u8
-}
-
-pub struct Palette {
-    colors: Vec<u32>
 }
 
 pub enum ScreenState {

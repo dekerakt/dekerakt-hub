@@ -11,6 +11,7 @@ extern crate slog;
 extern crate slog_scope;
 extern crate slog_term;
 
+mod graphics;
 mod messages;
 mod logger;
 
