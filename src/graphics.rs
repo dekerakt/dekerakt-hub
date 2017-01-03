@@ -71,23 +71,23 @@ impl Palette {
         if let Some(idx) = self.colors.iter().position(|x| *x == color) {
             return idx as u8;
         }
-        let idxR: i32 = ((color.r as f32) * 5.0f32 / 255.0f32 + 0.5f32) as i32;
-        let idxG: i32 = ((color.g as f32) * 7.0f32 / 255.0f32 + 0.5f32) as i32;
-        let idxB: i32 = ((color.b as f32) * 4.0f32 / 255.0f32 + 0.5f32) as i32;
-        let idx = 16 + idxR * 8 * 5 + idxG * 5 + idxB;
-        let mut minDelta = color.delta(&self[0]);
-        let mut minDIdx = 0;
+        let idx_red: i32 = ((color.r as f32) * 5.0f32 / 255.0f32 + 0.5f32) as i32;
+        let idx_green: i32 = ((color.g as f32) * 7.0f32 / 255.0f32 + 0.5f32) as i32;
+        let idx_blue: i32 = ((color.b as f32) * 4.0f32 / 255.0f32 + 0.5f32) as i32;
+        let idx = 16 + idx_red * 8 * 5 + idx_green * 5 + idx_blue;
+        let mut min_delta = color.delta(&self[0]);
+        let mut min_delta_index = 0;
         for i in 1..16 {
             let delta = color.delta(&self[i]);
-            if delta < minDelta {
-                minDelta = delta;
-                minDIdx = i;
+            if delta < min_delta {
+                min_delta = delta;
+                min_delta_index = i;
             }
         }
-        if color.delta(&self[idx as usize]) < minDelta {
+        if color.delta(&self[idx as usize]) < min_delta {
             idx as u8
         } else {
-            minDIdx as u8
+            min_delta_index as u8
         }
     }
 }
@@ -171,8 +171,8 @@ impl Canvas {
         }
     }
 
-    fn resize(&mut self, resolution: ScreenResolution) {
-        let mut newCanvas: Vec<Char> = Vec::with_capacity(resolution.area());
+    pub fn resize(&mut self, resolution: ScreenResolution) {
+        let mut new_canvas: Vec<Char> = Vec::with_capacity(resolution.area());
         for y in 0..resolution.height {
             for x in 0..resolution.width {
                 let c: Char;
@@ -181,21 +181,21 @@ impl Canvas {
                 } else {
                     c = Char::empty();
                 }
-                newCanvas.push(c);
+                new_canvas.push(c);
             }
         }
-        self.canvas = newCanvas;
+        self.canvas = new_canvas;
         self.resolution = resolution;
     }
 
-    fn get(&self, x: u8, y: u8) -> &Char {
+    pub fn get(&self, x: u8, y: u8) -> &Char {
         if x > self.resolution.width || y > self.resolution.height {
             panic!("invalid values for x and y: larger than resolution");
         }
         &self.canvas[(y * self.resolution.width + x) as usize]
     }
 
-    fn set(&mut self, x: u8, y: u8, char: Char) {
+    pub fn set(&mut self, x: u8, y: u8, char: Char) {
         if x > self.resolution.width || y > self.resolution.height {
             // no-op
             return;
@@ -203,7 +203,7 @@ impl Canvas {
         self.canvas[(y * self.resolution.width + x) as usize] = char;
     }
 
-    fn copy(&mut self, x: u8, y: u8, mut w: u8, mut h: u8, tx: u8, ty: u8) {
+    pub fn copy(&mut self, x: u8, y: u8, mut w: u8, mut h: u8, tx: u8, ty: u8) {
         if x > self.resolution.width || y > self.resolution.height {
             return;
         }
@@ -226,7 +226,7 @@ impl Canvas {
         }
     }
 
-    fn fill(&mut self, x: u8, y: u8, mut w: u8, mut h: u8, c: char) {
+    pub fn fill(&mut self, x: u8, y: u8, mut w: u8, mut h: u8, c: char) {
         if x > self.resolution.width || y > self.resolution.height {
             return;
         }
