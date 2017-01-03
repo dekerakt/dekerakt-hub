@@ -1,3 +1,12 @@
+use graphics::{
+    Palette,
+    ScreenResolution,
+    ScreenState,
+    PreciseMode,
+    Char,
+    Canvas
+};
+
 use std::time::Duration;
 
 pub enum Message {
@@ -57,7 +66,7 @@ pub enum Message {
         y: u8,
         w: u8,
         h: u8,
-        charCode: u32
+        char_code: u32
     },
     SetScreenState {
         screen_state: ScreenState
@@ -117,31 +126,6 @@ pub enum AuthResult {
     Authenticated = 0x00,
     BadCredentials = 0x01,
     UnsupportedMode = 0x02
-}
-
-pub struct ScreenResolution {
-    width: u8,
-    height: u8
-}
-
-pub struct Palette {
-    colors: Vec<u32>
-}
-
-pub enum ScreenState {
-    On = 0xff,
-    Off = 0x00
-}
-
-pub enum PreciseMode {
-    Precise = 0xff,
-    Imprecise = 0x00
-}
-
-pub struct Char {
-    fg_idx: u8,
-    bg_idx: u8,
-    char: char
 }
 
 pub enum Direction {
