@@ -1,4 +1,5 @@
 use std::ops::{Deref, DerefMut};
+use unicode_width::UnicodeWidthChar;
 
 #[derive(Eq, PartialEq)]
 pub struct Color {
@@ -244,6 +245,36 @@ impl Canvas {
         for j in y..(y + h) {
             for i in x..(x + w) {
                 self.set(i, j, char);
+            }
+        }
+    }
+
+    pub fn set_string(&mut self, mut x: u8, mut y: u8, chars: String, vertical: bool) {
+        if x > self.resolution.width || y > self.resolution.height {
+            return;
+        }
+        for c in chars.chars() {
+            let width = UnicodeWidthChar::width(c).unwrap() as u8;
+            let char = Char {
+                char: c,
+                fg_idx: self.fg,
+                bg_idx: self.bg
+            };
+            if width > 1 {
+                let space = Char {
+                    char: ' ',
+                    fg_idx: self.fg,
+                    bg_idx: self.bg
+                };
+                for i in 1..width {
+                    self.set(x + i, y, space);
+                }
+            }
+            self.set(x, y, char);
+            if vertical {
+                y += 1;
+            } else {
+                x += width;
             }
         }
     }
