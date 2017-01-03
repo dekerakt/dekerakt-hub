@@ -204,6 +204,9 @@ impl Canvas {
     }
 
     fn copy(&mut self, x: u8, y: u8, mut w: u8, mut h: u8, tx: u8, ty: u8) {
+        if x > self.resolution.width || y > self.resolution.height {
+            return;
+        }
         if x + w > self.resolution.width {
             w = self.resolution.width - x;
         }
@@ -218,7 +221,29 @@ impl Canvas {
         }
         for j in 0..h {
             for i in 0..w {
-                self.set(tx + i, ty + j, copy_region[(j * w + i) as usize]);
+                self.set(x + tx + i, y + ty + j, copy_region[(j * w + i) as usize]);
+            }
+        }
+    }
+
+    fn fill(&mut self, x: u8, y: u8, mut w: u8, mut h: u8, c: char) {
+        if x > self.resolution.width || y > self.resolution.height {
+            return;
+        }
+        if x + w > self.resolution.width {
+            w = self.resolution.width - x;
+        }
+        if y + h > self.resolution.height {
+            h = self.resolution.height - y;
+        }
+        let char = Char {
+            char: c,
+            fg_idx: self.fg,
+            bg_idx: self.bg
+        };
+        for j in y..(y + h) {
+            for i in x..(x + w) {
+                self.set(i, j, char);
             }
         }
     }
