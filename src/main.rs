@@ -12,7 +12,7 @@ extern crate slog_scope;
 extern crate slog_term;
 
 mod graphics;
-mod messages;
+mod message;
 mod logger;
 mod codec;
 mod proto;

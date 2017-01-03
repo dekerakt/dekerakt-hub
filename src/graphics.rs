@@ -194,4 +194,32 @@ impl Canvas {
         }
         &self.canvas[(y * self.resolution.width + x) as usize]
     }
+
+    fn set(&mut self, x: u8, y: u8, char: Char) {
+        if x > self.resolution.width || y > self.resolution.height {
+            // no-op
+            return;
+        }
+        self.canvas[(y * self.resolution.width + x) as usize] = char;
+    }
+
+    fn copy(&mut self, x: u8, y: u8, mut w: u8, mut h: u8, tx: u8, ty: u8) {
+        if x + w > self.resolution.width {
+            w = self.resolution.width - x;
+        }
+        if y + h > self.resolution.height {
+            h = self.resolution.height - y;
+        }
+        let mut copy_region: Vec<Char> = Vec::with_capacity((w * h) as usize);
+        for j in y..(y + h) {
+            for i in x..(x + w) {
+                copy_region.push(*self.get(i, j));
+            }
+        }
+        for j in 0..h {
+            for i in 0..w {
+                self.set(tx + i, ty + j, copy_region[(j * w + i) as usize]);
+            }
+        }
+    }
 }
