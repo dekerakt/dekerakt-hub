@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-#[derive(PartialEq)]
+#[derive(Eq, PartialEq)]
 pub struct Color {
     r: u8,
     g: u8,
@@ -103,5 +103,95 @@ impl Deref for Palette {
 impl DerefMut for Palette {
     fn deref_mut(&mut self) -> &mut Vec<Color> {
         &mut self.colors
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct ScreenResolution {
+    width: u8,
+    height: u8
+}
+
+impl ScreenResolution {
+    fn area(&self) -> usize {
+        (self.width * self.height) as usize
+    }
+}
+
+pub enum ScreenState {
+    On = 0xff,
+    Off = 0x00
+}
+
+pub enum PreciseMode {
+    Precise = 0xff,
+    Imprecise = 0x00
+}
+
+#[derive(Copy, Clone)]
+pub struct Char {
+    fg_idx: u8,
+    bg_idx: u8,
+    char: char
+}
+
+impl Char {
+    fn empty() -> Char {
+        Char { fg_idx: 255, bg_idx: 16, char: ' ' }
+    }
+}
+
+pub struct Canvas {
+    canvas: Vec<Char>,
+    resolution: ScreenResolution,
+    fg: u8,
+    bg: u8,
+    palette: Palette
+}
+
+impl Canvas {
+    pub fn new(palette: Palette, resolution: ScreenResolution) -> Canvas {
+        let mut canvas = Canvas {
+            canvas: Vec::with_capacity(resolution.area()),
+            resolution: resolution,
+            fg: 255,
+            bg: 16,
+            palette: palette
+        };
+        canvas.initial_chars();
+        canvas
+    }
+
+    fn initial_chars(&mut self) {
+        if self.canvas.len() != 0 {
+            return;
+        }
+        for i in 0..self.resolution.area() {
+            self.canvas.push(Char::empty());
+        }
+    }
+
+    fn resize(&mut self, resolution: ScreenResolution) {
+        let mut newCanvas: Vec<Char> = Vec::with_capacity(resolution.area());
+        for y in 0..resolution.height {
+            for x in 0..resolution.width {
+                let c: Char;
+                if y < self.resolution.height && x < self.resolution.width {
+                    c = *self.get(x, y);
+                } else {
+                    c = Char::empty();
+                }
+                newCanvas.push(c);
+            }
+        }
+        self.canvas = newCanvas;
+        self.resolution = resolution;
+    }
+
+    fn get(&self, x: u8, y: u8) -> &Char {
+        if x > self.resolution.width || y > self.resolution.height {
+            panic!("invalid values for x and y: larger than resolution");
+        }
+        &self.canvas[(y * self.resolution.width + x) as usize]
     }
 }
