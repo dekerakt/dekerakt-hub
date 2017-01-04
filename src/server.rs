@@ -45,15 +45,30 @@ impl Server {
             let store = store.clone();
             let mut handler = Handler::new(addr, store);
 
-            let send = sink.send_all(stream.and_then(move |msg| {
-                let response = handler.handle(msg.clone());
-                info!("Handled request";
-                    "request" => format!("{:?}", msg),
-                    "response" => format!("{:?}", response),
-                    "addr" => format!("{}", addr));
+            let send = sink.send_all(stream.then(move |msg| {
+                match msg {
+                    Ok(msg) => {
+                        let response = handler.handle(msg.clone());
 
-                Ok(response)
+                        match msg {
+                            Ok(msg) => info!("addr" => format!("{}", addr);
+                                "Handled a message: {:?}", msg),
+                            Err(e) => error!("Handled a bad message";
+                                "error" => format!("{}", e),
+                                "addr" => format!("{}", addr))
+                        }
+
+                        Ok(response)
+                    }
+
+                    Err(e) => {
+                        error!("addr" => format!("{}", addr);
+                            "IO Error: {}", e);
+                        Err(e)
+                    }
+                }
             }));
+
 
             handle.spawn(send.and_then(|_| Ok(())).or_else(move |e| {
                 error!("Connection error";
