@@ -1,4 +1,4 @@
-use {slog, slog_scope, slog_term};
+use {slog_scope, slog_term};
 use slog::{Level, Logger, DrainExt, level_filter};
 
 pub fn init() {

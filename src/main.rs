@@ -1,7 +1,4 @@
 extern crate futures;
-
-extern crate tokio_service;
-extern crate tokio_proto;
 extern crate tokio_core;
 
 #[macro_use(o, slog_log, slog_trace, slog_debug, slog_info, slog_warn,
@@ -12,13 +9,13 @@ extern crate slog_scope;
 extern crate slog_term;
 
 extern crate unicode_width;
+extern crate byteorder;
 
 mod graphics;
 mod message;
 mod logger;
 mod codec;
-mod proto;
-mod service;
+mod handler;
 mod store;
 mod server;
 

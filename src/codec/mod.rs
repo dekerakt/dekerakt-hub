@@ -1,5 +1,14 @@
 use std::{io, str};
+use std::io::Result as IoResult;
+
 use tokio_core::io::{Codec as CodecTrait, EasyBuf};
+
+#[macro_use]
+mod macros;
+mod decoder;
+mod encoder;
+
+pub type IoOption<T> = IoResult<Option<T>>;
 
 pub struct Codec;
 
