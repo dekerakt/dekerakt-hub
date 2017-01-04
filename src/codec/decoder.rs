@@ -6,7 +6,7 @@ use byteorder::{BigEndian, ReadBytesExt};
 use tokio_core::io::EasyBuf;
 
 use super::IoOption;
-use message::{Message, ConnectionMode};
+use message::{Message, ConnectionMode, ConnectionSide};
 
 fn decode_u8(mut buf: &[u8]) -> IoOption<u8> {
     Ok(buf.read_u8().ok())
@@ -36,6 +36,16 @@ fn decode_connection_mode(mut buf: &[u8]) -> IoOption<ConnectionMode> {
         0x03 => Ok(Some(ConnectionMode::Custom)),
 
         _ => Err(io::Error::new(io::ErrorKind::Other, "invalid connection mode"))
+    }
+}
+
+fn decode_connection_side(mut buf: &[u8]) -> IoOption<ConnectionSide> {
+    match try_io_opt!(decode_u8(buf)) {
+        0x00 => Ok(Some(ConnectionSide::OC)),
+        0x01 => Ok(Some(ConnectionSide::External)),
+        0xff => Ok(Some(ConnectionSide::Custom)),
+
+        _ => Err(io::Error::new(io::ErrorKind::Other, "invalid connection side"))
     }
 }
 
@@ -69,6 +79,7 @@ pub fn decode(buf: &mut EasyBuf) -> IoOption<Message> {
             user: try_io_opt!(decode_string(body_buf)),
             password: try_io_opt!(decode_string(body_buf)),
             connection_mode: try_io_opt!(decode_connection_mode(body_buf)),
+            connection_side: try_io_opt!(decode_connection_side(body_buf)),
             ping_interval: try_io_opt!(decode_duration(body_buf))
         })),
 

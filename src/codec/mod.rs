@@ -6,8 +6,8 @@ use tokio_core::io::{Codec as CodecTrait, EasyBuf};
 
 #[macro_use]
 mod macros;
-// mod decoder;
-// mod encoder;
+mod decoder;
+mod encoder;
 
 pub type IoOption<T> = IoResult<Option<T>>;
 
