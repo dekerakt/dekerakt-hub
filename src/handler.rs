@@ -1,4 +1,3 @@
-use std::io;
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::cell::RefCell;

@@ -1,5 +1,4 @@
 use std::{io, fmt, str};
-use std::io::Result as IoResult;
 use std::str::Utf8Error;
 
 use tokio_core::io::{Codec as CodecTrait, EasyBuf};
@@ -9,7 +8,7 @@ mod macros;
 mod decoder;
 mod encoder;
 
-pub type IoOption<T> = IoResult<Option<T>>;
+pub type IoOption<T> = io::Result<Option<T>>;
 
 pub struct Codec;
 
