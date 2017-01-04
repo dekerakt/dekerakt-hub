@@ -9,3 +9,5 @@ Cargo.lock
 # Vim files
 *.swp
 *.swo
+session.vim
+
