@@ -17,6 +17,7 @@ pub enum Message {
         user: String,
         password: String,
         connection_mode: ConnectionMode,
+        connection_side: ConnectionSide,
         ping_interval: Duration
     },
     AuthServer {
@@ -78,17 +79,17 @@ pub enum Message {
     EventTouch {
         x: u8,
         y: u8,
-        button: u8
+        button: i8
     },
     EventDrag {
         x: u8,
         y: u8,
-        button: u8
+        button: i8
     },
     EventDrop {
         x: u8,
         y: u8,
-        button: u8
+        button: i8
     },
     EventScroll {
         x: u8,
@@ -122,10 +123,17 @@ pub enum ConnectionMode {
     Custom = 0x03
 }
 
+pub enum ConnectionSide {
+    OC = 0x00,
+    External = 0x01,
+    Custom = 0xff
+}
+
 pub enum AuthResult {
     Authenticated = 0x00,
     BadCredentials = 0x01,
-    UnsupportedMode = 0x02
+    UnsupportedMode = 0x02,
+    VertexInUse = 0x03
 }
 
 pub enum Direction {
