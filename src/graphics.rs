@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 use unicode_width::UnicodeWidthChar;
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Color {
     r: u8,
     g: u8,
@@ -21,6 +21,7 @@ impl Color {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Palette {
     colors: Vec<Color>
 }
@@ -107,7 +108,7 @@ impl DerefMut for Palette {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ScreenResolution {
     width: u8,
     height: u8
@@ -119,17 +120,19 @@ impl ScreenResolution {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum ScreenState {
     On = 0xff,
     Off = 0x00
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum PreciseMode {
     Precise = 0xff,
     Imprecise = 0x00
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Char {
     fg_idx: u8,
     bg_idx: u8,
@@ -142,6 +145,7 @@ impl Char {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Canvas {
     canvas: Vec<Char>,
     resolution: ScreenResolution,

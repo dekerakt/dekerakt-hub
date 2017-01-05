@@ -9,6 +9,7 @@ use graphics::{
 
 use std::time::Duration;
 
+#[derive(Debug, Clone)]
 pub enum Message {
     Error {
         description: String
@@ -116,6 +117,7 @@ pub enum Message {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum ConnectionMode {
     GpuKbd = 0x00,
     Gpu = 0x01,
@@ -123,12 +125,14 @@ pub enum ConnectionMode {
     Custom = 0x03
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum ConnectionSide {
     OC = 0x00,
     External = 0x01,
     Custom = 0xff
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum AuthResult {
     Authenticated = 0x00,
     BadCredentials = 0x01,
@@ -136,6 +140,7 @@ pub enum AuthResult {
     VertexInUse = 0x03
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum Direction {
     Up = 0xff,
     Down = 0x00

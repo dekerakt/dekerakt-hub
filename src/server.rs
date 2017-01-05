@@ -13,6 +13,7 @@ use futures::{Sink, Stream, Future};
 use store::Store;
 use handler::Handler;
 use codec::Codec;
+use message::Message;
 
 pub struct Server {
     pub addr: SocketAddr,
@@ -47,25 +48,28 @@ impl Server {
 
             let send = sink.send_all(stream.then(move |msg| {
                 match msg {
-                    Ok(msg) => {
+                    Ok(Ok(msg)) => {
                         let response = handler.handle(msg.clone());
 
-                        match msg {
-                            Ok(msg) => info!("addr" => format!("{}", addr);
-                                "Handled a message: {:?}", msg),
-                            Err(e) => error!("Handled a bad message";
-                                "error" => format!("{}", e),
-                                "addr" => format!("{}", addr))
-                        }
+                        info!("addr" => format!("{}", addr);
+                            "Handled a message: {:?}", msg);
 
                         Ok(response)
                     }
 
-                    Err(e) => {
-                        error!("addr" => format!("{}", addr);
-                            "IO Error: {}", e);
-                        Err(e)
+                    Ok(Err(e)) => {
+                        let response = Message::Error {
+                            description: format!("{}", e)
+                        };
+
+                        error!("Handled a bad message";
+                            "error" => format!("{}", e),
+                            "addr" => format!("{}", addr));
+
+                        Ok(response)
                     }
+
+                    Err(e) => Err(e)
                 }
             }));
 
@@ -73,6 +77,7 @@ impl Server {
             handle.spawn(send.and_then(|_| Ok(())).or_else(move |e| {
                 error!("Connection error";
                     "description" => e.description(),
+                    "kind" => format!("{:?}", e.kind()),
                     "addr" => format!("{}", addr));
                 Ok(())
             }).and_then(move |_| {

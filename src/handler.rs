@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use store::Store;
-use codec::Error;
+use message::Message;
 
 pub struct Handler {
     addr: SocketAddr,
@@ -18,10 +18,9 @@ impl Handler {
         }
     }
 
-    pub fn handle(&mut self, msg: Result<String, Error>) -> String {
-        match msg {
-            Ok(msg) => msg.chars().rev().collect(),
-            Err(e) => format!("{}", e)
+    pub fn handle(&mut self, msg: Message) -> Message {
+        Message::Error {
+            description: "I'm a teapot".to_string()
         }
     }
 }

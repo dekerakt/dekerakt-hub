@@ -1,89 +1,151 @@
-use std::io;
+use std::{io, fmt};
 use std::io::Read;
 use std::time::Duration;
+use std::str::Utf8Error;
 
 use byteorder::{BigEndian, ReadBytesExt};
 use tokio_core::io::EasyBuf;
 
-use super::IoOption;
 use message::{Message, ConnectionMode, ConnectionSide};
 
-fn decode_u8(mut buf: &[u8]) -> IoOption<u8> {
-    Ok(buf.read_u8().ok())
+macro_rules! try_decode {
+    ($e:expr) => (match $e {
+        DecodeResult::Ok(v) => v,
+        DecodeResult::Err(e) => return DecodeResult::Err(e),
+        DecodeResult::IoErr(e) => return DecodeResult::IoErr(e)
+    })
 }
 
-fn decode_u16(mut buf: &[u8]) -> IoOption<u16> {
-    Ok(buf.read_u16::<BigEndian>().ok())
+macro_rules! try_io_decode {
+    ($e:expr) => (match $e {
+        Ok(v) => v,
+        Err(e) => return DecodeResult::IoErr(e)
+    })
 }
 
-fn decode_u24(mut buf: &[u8]) -> IoOption<u64> {
-    Ok(buf.read_uint::<BigEndian>(3).ok())
+#[derive(Debug, Copy, Clone)]
+pub enum DecodeError {
+    InvalidString(Utf8Error),
+    InvalidConnectionMode,
+    InvalidConnectionSide,
+    UnknownMessage
 }
 
-fn decode_u32(mut buf: &[u8]) -> IoOption<u32> {
-    Ok(buf.read_u32::<BigEndian>().ok())
-}
-
-fn decode_u64(mut buf: &[u8]) -> IoOption<u64> {
-    Ok(buf.read_u64::<BigEndian>().ok())
-}
-
-fn decode_connection_mode(mut buf: &[u8]) -> IoOption<ConnectionMode> {
-    match try_io_opt!(decode_u8(buf)) {
-        0x00 => Ok(Some(ConnectionMode::GpuKbd)),
-        0x01 => Ok(Some(ConnectionMode::Gpu)),
-        0x02 => Ok(Some(ConnectionMode::Kbd)),
-        0x03 => Ok(Some(ConnectionMode::Custom)),
-
-        _ => Err(io::Error::new(io::ErrorKind::Other, "invalid connection mode"))
+impl fmt::Display for DecodeError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            DecodeError::InvalidString(e) =>
+                write!(fmt, "invalid string ({})", e),
+            DecodeError::InvalidConnectionMode =>
+                write!(fmt, "invalid connection mode"),
+            DecodeError::InvalidConnectionSide =>
+                write!(fmt, "invalid connection side"),
+            DecodeError::UnknownMessage =>
+                write!(fmt, "unknown message")
+        }
     }
 }
 
-fn decode_connection_side(mut buf: &[u8]) -> IoOption<ConnectionSide> {
-    match try_io_opt!(decode_u8(buf)) {
-        0x00 => Ok(Some(ConnectionSide::OC)),
-        0x01 => Ok(Some(ConnectionSide::External)),
-        0xff => Ok(Some(ConnectionSide::Custom)),
+pub enum DecodeResult<T> {
+    Ok(T),
+    Err(DecodeError),
+    IoErr(io::Error)
+}
 
-        _ => Err(io::Error::new(io::ErrorKind::Other, "invalid connection side"))
+impl<T> From<T> for DecodeResult<T> {
+    fn from(inner: T) -> DecodeResult<T> {
+        DecodeResult::Ok(inner)
     }
 }
 
-fn decode_duration(mut buf: &[u8]) -> IoOption<Duration> {
-    Ok(Some(Duration::from_secs(try_io_opt!(decode_u16(buf)) as u64)))
-}
-
-fn decode_string(mut buf: &[u8]) -> IoOption<String> {
-    let len = try_io_opt!(decode_u24(buf)) as usize;
-
-    let mut string_buf = Vec::with_capacity(len);
-    buf.read_exact(string_buf.as_mut_slice());
-
-    match String::from_utf8(string_buf) {
-        Ok(v) => Ok(Some(v)),
-        Err(_) => Err(io::Error::new(io::ErrorKind::Other, "invalid string"))
+impl<T> From<io::Result<T>> for DecodeResult<T> {
+    fn from(inner: io::Result<T>) -> DecodeResult<T> {
+        match inner {
+            Ok(v) => DecodeResult::Ok(v),
+            Err(e) => DecodeResult::IoErr(e)
+        }
     }
 }
 
-pub fn decode(buf: &mut EasyBuf) -> IoOption<Message> {
-    let mut buf = buf.as_ref();
-    let code = try_io_opt!(decode_u8(buf));
-    let len = try_io_opt!(decode_u24(buf)) as usize;
+pub trait DecodeExt: Read {
+    fn decode_u8(&mut self) -> DecodeResult<u8> {
+        self.read_u8().into()
+    }
 
-    let mut body_buf = Vec::with_capacity(len);
-    buf.read_exact(body_buf.as_mut_slice());
-    let mut body_buf = body_buf.as_slice();
+    fn decode_u16(&mut self) -> DecodeResult<u16> {
+        self.read_u16::<BigEndian>().into()
+    }
 
-    match code {
-        0x01 => Ok(Some(Message::AuthClient {
-            user: try_io_opt!(decode_string(body_buf)),
-            password: try_io_opt!(decode_string(body_buf)),
-            connection_mode: try_io_opt!(decode_connection_mode(body_buf)),
-            connection_side: try_io_opt!(decode_connection_side(body_buf)),
-            ping_interval: try_io_opt!(decode_duration(body_buf))
-        })),
+    fn decode_u24(&mut self) -> DecodeResult<u64> {
+        self.read_uint::<BigEndian>(3).into()
+    }
 
-        _ => unimplemented!()
+    fn decode_u32(&mut self) -> DecodeResult<u32> {
+        self.read_u32::<BigEndian>().into()
+    }
+
+    fn decode_u64(&mut self) -> DecodeResult<u64> {
+        self.read_u64::<BigEndian>().into()
+    }
+
+    fn decode_connection_mode(&mut self) -> DecodeResult<ConnectionMode> {
+        match try_decode!(self.decode_u8()) {
+            0x00 => ConnectionMode::GpuKbd.into(),
+            0x01 => ConnectionMode::Gpu.into(),
+            0x02 => ConnectionMode::Kbd.into(),
+            0x03 => ConnectionMode::Custom.into(),
+
+            _ => DecodeResult::Err(DecodeError::InvalidConnectionMode)
+        }
+    }
+
+    fn decode_connection_side(&mut self) -> DecodeResult<ConnectionSide> {
+        match try_decode!(self.decode_u8()) {
+            0x00 => ConnectionSide::OC.into(),
+            0x01 => ConnectionSide::External.into(),
+            0xff => ConnectionSide::Custom.into(),
+
+            _ => DecodeResult::Err(DecodeError::InvalidConnectionSide)
+        }
+    }
+
+    fn decode_duration(&mut self) -> DecodeResult<Duration> {
+        Duration::from_secs(try_decode!(self.decode_u16()) as u64).into()
+    }
+
+    fn decode_string(&mut self) -> DecodeResult<String> {
+        let len = try_decode!(self.decode_u24()) as usize;
+
+        let mut string_buf = Vec::with_capacity(len);
+        try_io_decode!(self.read_exact(string_buf.as_mut_slice()));
+
+        match String::from_utf8(string_buf) {
+            Ok(v) => v.into(),
+            Err(e) =>
+                DecodeResult::Err(DecodeError::InvalidString(e.utf8_error()))
+        }
+    }
+
+    fn decode_message(&mut self) -> DecodeResult<Message> {
+        let code = try_decode!(self.decode_u8());
+        let len = try_decode!(self.decode_u24()) as usize;
+
+        let mut body_buf = Vec::with_capacity(len);
+        try_io_decode!(self.read_exact(body_buf.as_mut_slice()));
+        let mut body_buf = body_buf.as_slice();
+
+        match code {
+            0x01 => Message::AuthClient {
+                user: try_decode!(body_buf.decode_string()),
+                password: try_decode!(body_buf.decode_string()),
+                connection_mode: try_decode!(body_buf.decode_connection_mode()),
+                connection_side: try_decode!(body_buf.decode_connection_side()),
+                ping_interval: try_decode!(body_buf.decode_duration())
+            }.into(),
+
+            _ => DecodeResult::Err(DecodeError::UnknownMessage)
+        }
     }
 }
 
+impl<T: Read> DecodeExt for T {}
