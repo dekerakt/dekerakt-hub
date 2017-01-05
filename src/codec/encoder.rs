@@ -61,9 +61,7 @@ pub trait EncodeExt: Write {  // No error handling
     }
 
     fn encode_char_raw(&mut self, char_raw: char) {
-        let mut buf = [0; 4];
-        char_raw.encode_utf8(&mut buf);
-        self.write_all(&buf).unwrap();
+        self.encode_u32(char_raw as u32)
     }
 
     fn encode_char(&mut self, char: Char) {
