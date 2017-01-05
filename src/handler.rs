@@ -19,6 +19,12 @@ impl Handler {
     }
 
     pub fn handle(&mut self, msg: Message) -> Message {
-        unimplemented!()
+        match msg {
+            Message::Ping { ping } => Message::Pong { pong: ping },
+
+            _ => Message::Error {
+                description: "I'm a teapot!".to_string()
+            }
+        }
     }
 }
