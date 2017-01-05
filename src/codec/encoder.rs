@@ -241,7 +241,7 @@ pub trait EncodeExt: Write {  // No error handling
             }
 
             Message::Pong { pong } => {
-                code = 0x15;
+                code = 0x16;
                 body.encode_u64(pong);
             }
 
