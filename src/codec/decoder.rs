@@ -364,7 +364,7 @@ pub trait DecodeExt: Read {
 
             0x06 => Message::SetPalette {
                 color: try_decode!(body_buf.decode_color()),
-                idx: try_decode!(body_buf.decode_u8())
+                index: try_decode!(body_buf.decode_u8())
             }.into(),
 
             0x07 => Message::SetResolution {

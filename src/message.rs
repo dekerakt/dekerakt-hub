@@ -36,7 +36,7 @@ pub enum Message {
     },
     SetPalette {
         color: Color,
-        idx: u8
+        index: u8
     },
     SetResolution {
         resolution: ScreenResolution
