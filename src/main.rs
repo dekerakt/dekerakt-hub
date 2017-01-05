@@ -10,6 +10,7 @@ extern crate slog_term;
 
 extern crate unicode_width;
 extern crate byteorder;
+extern crate argparse;
 
 mod graphics;
 mod message;
@@ -19,15 +20,44 @@ mod handler;
 mod store;
 mod server;
 
-use std::env;
+use std::process::exit;
+use std::net::SocketAddr;
+
+use slog::Level;
+use argparse::{ArgumentParser, StoreConst, Store, Print};
+
 use server::Server;
 
-fn main() {
-    logger::init();
-    info!("Started app"; "version" => env!("CARGO_PKG_VERSION"));
+fn parse_arguments() -> (slog::Level, SocketAddr) {
+        let mut level = Level::Info;
+        let mut addr = "127.0.0.1:8080".to_string();
 
-    let addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());
-    let addr = addr.parse().unwrap();
+    {
+        let mut ap = ArgumentParser::new();
+
+        ap.refer(&mut level)
+            .add_option(&["-v", "--verbose"], StoreConst(Level::Debug),
+            "be verbose");
+
+        ap.refer(&mut addr)
+            .add_argument("address", Store,
+            "listener address");
+
+        ap.parse_args_or_exit();
+    }
+
+    (level, addr.parse().unwrap_or_else(|e| {
+        println!("{}", e);
+        exit(2);
+    }))
+}
+
+
+fn main() {
+    let (level, addr) = parse_arguments();
+    logger::init(level);
+
+    info!("Started app"; "version" => env!("CARGO_PKG_VERSION"));
 
     let mut server = Server::new(addr);
 

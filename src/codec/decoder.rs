@@ -52,6 +52,14 @@ pub enum DecodeResult<T> {
     IoErr(io::Error)
 }
 
+impl<T> DecodeResult<T> {
+    fn map<U, F>(self, f: F) -> DecodeResult<U>
+        where F: Fn(T) -> U
+    {
+        DecodeResult::Ok(f(try_decode!(self)))
+    }
+}
+
 impl<T> From<T> for DecodeResult<T> {
     fn from(inner: T) -> DecodeResult<T> {
         DecodeResult::Ok(inner)
@@ -69,23 +77,38 @@ impl<T> From<io::Result<T>> for DecodeResult<T> {
 
 pub trait DecodeExt: Read {
     fn decode_u8(&mut self) -> DecodeResult<u8> {
-        self.read_u8().into()
+        self.read_u8().map(|v| {
+            debug!("decoded {} u8", v);
+            v
+        }).into()
     }
 
     fn decode_u16(&mut self) -> DecodeResult<u16> {
-        self.read_u16::<BigEndian>().into()
+        self.read_u16::<BigEndian>().map(|v| {
+            debug!("decoded {} u16", v);
+            v
+        }).into()
     }
 
     fn decode_u24(&mut self) -> DecodeResult<u64> {
-        self.read_uint::<BigEndian>(3).into()
+        self.read_uint::<BigEndian>(3).map(|v| {
+            debug!("decoded {} u24", v);
+            v
+        }).into()
     }
 
     fn decode_u32(&mut self) -> DecodeResult<u32> {
-        self.read_u32::<BigEndian>().into()
+        self.read_u32::<BigEndian>().map(|v| {
+            debug!("decoded {} u32", v);
+            v
+        }).into()
     }
 
     fn decode_u64(&mut self) -> DecodeResult<u64> {
-        self.read_u64::<BigEndian>().into()
+        self.read_u64::<BigEndian>().map(|v| {
+            debug!("decoded {} u64", v);
+            v
+        }).into()
     }
 
     fn decode_connection_mode(&mut self) -> DecodeResult<ConnectionMode> {
@@ -96,7 +119,10 @@ pub trait DecodeExt: Read {
             0x03 => ConnectionMode::Custom.into(),
 
             _ => DecodeResult::Err(DecodeError::InvalidConnectionMode)
-        }
+        }.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
     }
 
     fn decode_connection_side(&mut self) -> DecodeResult<ConnectionSide> {
@@ -106,11 +132,20 @@ pub trait DecodeExt: Read {
             0xff => ConnectionSide::Custom.into(),
 
             _ => DecodeResult::Err(DecodeError::InvalidConnectionSide)
-        }
+        }.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
     }
 
     fn decode_duration(&mut self) -> DecodeResult<Duration> {
-        Duration::from_secs(try_decode!(self.decode_u16()) as u64).into()
+        let v: DecodeResult<_> = Duration::from_secs(
+            try_decode!(self.decode_u16()) as u64).into();
+
+        v.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
     }
 
     fn decode_string(&mut self) -> DecodeResult<String> {
@@ -123,16 +158,21 @@ pub trait DecodeExt: Read {
             Ok(v) => v.into(),
             Err(e) =>
                 DecodeResult::Err(DecodeError::InvalidString(e.utf8_error()))
-        }
+        }.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
     }
 
     fn decode_message(&mut self) -> DecodeResult<Message> {
         let code = try_decode!(self.decode_u8());
         let len = try_decode!(self.decode_u24()) as usize;
 
-        let mut body_buf = Vec::with_capacity(len);
+        let mut body_buf = vec![0; len];
         try_io_decode!(self.read_exact(body_buf.as_mut_slice()));
         let mut body_buf = body_buf.as_slice();
+
+        debug!("body {}", body_buf.len());
 
         match code {
             0x01 => Message::AuthClient {
