@@ -4,7 +4,6 @@ use std::time::Duration;
 use std::str::Utf8Error;
 
 use byteorder::{BigEndian, ReadBytesExt};
-use tokio_core::io::EasyBuf;
 
 use message::{Message, ConnectionMode, ConnectionSide};
 use graphics::{Color, Palette, ScreenResolution, ScreenState,
@@ -267,7 +266,7 @@ pub trait DecodeExt: Read {
     fn decode_chars(&mut self, len: usize) -> DecodeResult<Vec<Char>> {
         let mut chars = Vec::with_capacity(len);
 
-        for i in 0..len {
+        for _ in 0..len {
             chars.push(try_decode!(self.decode_char()));
         }
 

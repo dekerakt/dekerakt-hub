@@ -1,16 +1,12 @@
 pub mod decoder;
 pub mod encoder;
 
-use std::{io, fmt, str};
-use std::str::Utf8Error;
-
+use std::{io, str};
 use tokio_core::io::{Codec as CodecTrait, EasyBuf};
 
 use message::Message;
 use self::decoder::{DecodeExt, DecodeError, DecodeResult};
 use self::encoder::EncodeExt;
-
-pub type IoOption<T> = io::Result<Option<T>>;
 
 pub struct Codec;
 

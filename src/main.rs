@@ -24,7 +24,7 @@ use std::process::exit;
 use std::net::SocketAddr;
 
 use slog::Level;
-use argparse::{ArgumentParser, StoreConst, Store, Print};
+use argparse::{ArgumentParser, StoreConst, Store};
 
 use server::Server;
 
