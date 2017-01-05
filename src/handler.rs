@@ -19,8 +19,6 @@ impl Handler {
     }
 
     pub fn handle(&mut self, msg: Message) -> Message {
-        Message::Error {
-            description: "I'm a teapot".to_string()
-        }
+        unimplemented!()
     }
 }

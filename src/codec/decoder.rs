@@ -1,4 +1,4 @@
-use std::{io, fmt};
+use std::{io, fmt, char};
 use std::io::Read;
 use std::time::Duration;
 use std::str::Utf8Error;
@@ -7,6 +7,8 @@ use byteorder::{BigEndian, ReadBytesExt};
 use tokio_core::io::EasyBuf;
 
 use message::{Message, ConnectionMode, ConnectionSide};
+use graphics::{Color, Palette, ScreenResolution, ScreenState,
+    PreciseMode, Char};
 
 macro_rules! try_decode {
     ($e:expr) => (match $e {
@@ -28,6 +30,9 @@ pub enum DecodeError {
     InvalidString(Utf8Error),
     InvalidConnectionMode,
     InvalidConnectionSide,
+    InvalidScreenState,
+    InvalidPreciseMode,
+    InvalidChar,
     UnknownMessage
 }
 
@@ -40,6 +45,12 @@ impl fmt::Display for DecodeError {
                 write!(fmt, "invalid connection mode"),
             DecodeError::InvalidConnectionSide =>
                 write!(fmt, "invalid connection side"),
+            DecodeError::InvalidScreenState =>
+                write!(fmt, "invalid screen state"),
+            DecodeError::InvalidPreciseMode =>
+                write!(fmt, "invalid precise mode"),
+            DecodeError::InvalidChar =>
+                write!(fmt, "invalid char"),
             DecodeError::UnknownMessage =>
                 write!(fmt, "unknown message")
         }
@@ -164,6 +175,110 @@ pub trait DecodeExt: Read {
         })
     }
 
+    fn decode_screen_state(&mut self) -> DecodeResult<ScreenState> {
+        match try_decode!(self.decode_u8()) {
+            0xff => ScreenState::On.into(),
+            0x00 => ScreenState::Off.into(),
+
+            _ => DecodeResult::Err(DecodeError::InvalidScreenState)
+        }.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
+    }
+
+    fn decode_precise_mode(&mut self) -> DecodeResult<PreciseMode> {
+        match try_decode!(self.decode_u8()) {
+            0xff => PreciseMode::Precise.into(),
+            0x00 => PreciseMode::Imprecise.into(),
+
+            _ => DecodeResult::Err(DecodeError::InvalidPreciseMode)
+        }.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
+    }
+
+    fn decode_screen_resolution(&mut self) -> DecodeResult<ScreenResolution> {
+        let v: DecodeResult<_> = ScreenResolution {
+            width: try_decode!(self.decode_u8()),
+            height: try_decode!(self.decode_u8())
+        }.into();
+
+        v.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
+    }
+
+    fn decode_color(&mut self) -> DecodeResult<Color> {
+        let v: DecodeResult<_> = Color {
+            r: try_decode!(self.decode_u8()),
+            g: try_decode!(self.decode_u8()),
+            b: try_decode!(self.decode_u8())
+        }.into();
+
+        v.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
+    }
+
+    fn decode_palette(&mut self) -> DecodeResult<Palette> {
+        let mut palette = [Default::default(); 16];
+
+        for i in 0..16 {
+            palette[i] = try_decode!(self.decode_color());
+        }
+
+        let v: DecodeResult<_> = palette.into();
+
+        v.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
+    }
+
+    fn decode_char_raw(&mut self) -> DecodeResult<char> {
+        let v = match char::from_u32(try_decode!(self.decode_u32())) {
+            Some(v) => v.into(),
+            None => DecodeResult::Err(DecodeError::InvalidChar)
+        };
+
+        v.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
+    }
+
+    fn decode_char(&mut self) -> DecodeResult<Char> {
+        let v: DecodeResult<_> = Char {
+            fg_idx: try_decode!(self.decode_u8()),
+            bg_idx: try_decode!(self.decode_u8()),
+            char: try_decode!(self.decode_char_raw())
+        }.into();
+
+        v.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
+    }
+
+    fn decode_chars(&mut self, len: usize) -> DecodeResult<Vec<Char>> {
+        let mut chars = Vec::with_capacity(len);
+
+        for i in 0..len {
+            chars.push(try_decode!(self.decode_char()));
+        }
+
+        let v: DecodeResult<_> = chars.into();
+
+        v.map(|v| {
+            debug!("decoded chars (too long to show)");
+            v
+        })
+    }
+
     fn decode_message(&mut self) -> DecodeResult<Message> {
         let code = try_decode!(self.decode_u8());
         let len = try_decode!(self.decode_u24()) as usize;
@@ -182,6 +297,26 @@ pub trait DecodeExt: Read {
                 connection_side: try_decode!(body_buf.decode_connection_side()),
                 ping_interval: try_decode!(body_buf.decode_duration())
             }.into(),
+
+            0x03 => {
+                let palette = try_decode!(body_buf.decode_palette());
+                let fg_idx = try_decode!(body_buf.decode_u8());
+                let bg_idx = try_decode!(body_buf.decode_u8());
+                let resolution = try_decode!(body_buf.decode_screen_resolution());
+                let screen_state = try_decode!(body_buf.decode_screen_state());
+                let precise_mode = try_decode!(body_buf.decode_precise_mode());
+                let chars = try_decode!(body_buf.decode_chars(resolution.area()));
+
+                Message::InitialData {
+                    palette: palette,
+                    fg_idx: fg_idx,
+                    bg_idx: bg_idx,
+                    resolution: resolution,
+                    screen_state: screen_state,
+                    precise_mode: precise_mode,
+                    chars: chars
+                }.into()
+            }
 
             _ => DecodeResult::Err(DecodeError::UnknownMessage)
         }

@@ -1,23 +1,23 @@
 use std::ops::{Deref, DerefMut};
 use unicode_width::UnicodeWidthChar;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct Color {
-    r: u8,
-    g: u8,
-    b: u8
+    pub r: u8,
+    pub g: u8,
+    pub b: u8
 }
 
 pub type Palette = [Color; 16];
 
 #[derive(Debug, Copy, Clone)]
 pub struct ScreenResolution {
-    width: u8,
-    height: u8
+    pub width: u8,
+    pub height: u8
 }
 
 impl ScreenResolution {
-    fn area(&self) -> usize {
+    pub fn area(&self) -> usize {
         (self.width * self.height) as usize
     }
 }
@@ -36,9 +36,9 @@ pub enum PreciseMode {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Char {
-    fg_idx: u8,
-    bg_idx: u8,
-    char: char
+    pub fg_idx: u8,
+    pub bg_idx: u8,
+    pub char: char
 }
 
 impl Char {
