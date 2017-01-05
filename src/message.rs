@@ -1,11 +1,5 @@
-use graphics::{
-    Palette,
-    ScreenResolution,
-    ScreenState,
-    PreciseMode,
-    Char,
-    Canvas
-};
+use graphics::{Palette, ScreenResolution, ScreenState, PreciseMode,
+    Char, Canvas, Color};
 
 use std::time::Duration;
 
@@ -41,9 +35,7 @@ pub enum Message {
         index: u8
     },
     SetPalette {
-        r: u8,
-        g: u8,
-        b: u8,
+        color: Color,
         idx: u8
     },
     SetResolution {
@@ -68,7 +60,7 @@ pub enum Message {
         y: u8,
         w: u8,
         h: u8,
-        char_code: u32
+        char: char
     },
     SetScreenState {
         screen_state: ScreenState

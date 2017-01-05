@@ -5,7 +5,7 @@ use std::str::Utf8Error;
 
 use byteorder::{BigEndian, ReadBytesExt};
 
-use message::{Message, ConnectionMode, ConnectionSide};
+use message::{Message, ConnectionMode, ConnectionSide, Direction};
 use graphics::{Color, Palette, ScreenResolution, ScreenState,
     PreciseMode, Char};
 
@@ -31,6 +31,8 @@ pub enum DecodeError {
     InvalidConnectionSide,
     InvalidScreenState,
     InvalidPreciseMode,
+    InvalidDirection,
+    InvalidBool,
     InvalidChar,
     UnknownMessage
 }
@@ -48,6 +50,10 @@ impl fmt::Display for DecodeError {
                 write!(fmt, "invalid screen state"),
             DecodeError::InvalidPreciseMode =>
                 write!(fmt, "invalid precise mode"),
+            DecodeError::InvalidDirection =>
+                write!(fmt, "invalid direction"),
+            DecodeError::InvalidBool =>
+                write!(fmt, "invalid bool"),
             DecodeError::InvalidChar =>
                 write!(fmt, "invalid char"),
             DecodeError::UnknownMessage =>
@@ -89,6 +95,13 @@ pub trait DecodeExt: Read {
     fn decode_u8(&mut self) -> DecodeResult<u8> {
         self.read_u8().map(|v| {
             debug!("decoded {} u8", v);
+            v
+        }).into()
+    }
+
+    fn decode_i8(&mut self) -> DecodeResult<i8> {
+        self.read_i8().map(|v| {
+            debug!("decoded {} i8", v);
             v
         }).into()
     }
@@ -198,6 +211,18 @@ pub trait DecodeExt: Read {
         })
     }
 
+    fn decode_direction(&mut self) -> DecodeResult<Direction> {
+        match try_decode!(self.decode_u8()) {
+            0xff => Direction::Up.into(),
+            0x00 => Direction::Down.into(),
+
+            _ => DecodeResult::Err(DecodeError::InvalidDirection)
+        }.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
+    }
+
     fn decode_screen_resolution(&mut self) -> DecodeResult<ScreenResolution> {
         let v: DecodeResult<_> = ScreenResolution {
             width: try_decode!(self.decode_u8()),
@@ -278,6 +303,18 @@ pub trait DecodeExt: Read {
         })
     }
 
+    fn decode_bool(&mut self) -> DecodeResult<bool> {
+        match try_decode!(self.decode_u8()) {
+            0xff => true.into(),
+            0x00 => false.into(),
+
+            _ => DecodeResult::Err(DecodeError::InvalidBool)
+        }.map(|v| {
+            debug!("decoded {:?}", v);
+            v
+        })
+    }
+
     fn decode_message(&mut self) -> DecodeResult<Message> {
         let code = try_decode!(self.decode_u8());
         let len = try_decode!(self.decode_u24()) as usize;
@@ -316,6 +353,105 @@ pub trait DecodeExt: Read {
                     chars: chars
                 }.into()
             }
+
+            0x04 => Message::SetBG {
+                index: try_decode!(body_buf.decode_u8())
+            }.into(),
+
+            0x05 => Message::SetFG {
+                index: try_decode!(body_buf.decode_u8())
+            }.into(),
+
+            0x06 => Message::SetPalette {
+                color: try_decode!(body_buf.decode_color()),
+                idx: try_decode!(body_buf.decode_u8())
+            }.into(),
+
+            0x07 => Message::SetResolution {
+                resolution: try_decode!(body_buf.decode_screen_resolution())
+            }.into(),
+
+            0x08 => Message::SetChars {
+                x: try_decode!(body_buf.decode_u8()),
+                y: try_decode!(body_buf.decode_u8()),
+                chars: try_decode!(body_buf.decode_string()),
+                vertical: try_decode!(body_buf.decode_bool())
+            }.into(),
+
+            0x09 => Message::Copy {
+                x: try_decode!(body_buf.decode_u8()),
+                y: try_decode!(body_buf.decode_u8()),
+                w: try_decode!(body_buf.decode_u8()),
+                h: try_decode!(body_buf.decode_u8()),
+                tx: try_decode!(body_buf.decode_u8()),
+                ty: try_decode!(body_buf.decode_u8())
+            }.into(),
+
+            0x0a => Message::Fill {
+                x: try_decode!(body_buf.decode_u8()),
+                y: try_decode!(body_buf.decode_u8()),
+                w: try_decode!(body_buf.decode_u8()),
+                h: try_decode!(body_buf.decode_u8()),
+                char: try_decode!(body_buf.decode_char_raw())
+            }.into(),
+
+            0x0b => Message::SetScreenState {
+                screen_state: try_decode!(body_buf.decode_screen_state())
+            }.into(),
+
+            0x0c => Message::SetPrecise {
+                precise_mode: try_decode!(body_buf.decode_precise_mode())
+            }.into(),
+
+            0x0d => Message::Fetch.into(),
+
+            0x0e => Message::EventTouch {
+                x: try_decode!(body_buf.decode_u8()),
+                y: try_decode!(body_buf.decode_u8()),
+                button: try_decode!(body_buf.decode_i8())
+            }.into(),
+
+            0x0f => Message::EventDrag {
+                x: try_decode!(body_buf.decode_u8()),
+                y: try_decode!(body_buf.decode_u8()),
+                button: try_decode!(body_buf.decode_i8())
+            }.into(),
+
+            0x10 => Message::EventDrop {
+                x: try_decode!(body_buf.decode_u8()),
+                y: try_decode!(body_buf.decode_u8()),
+                button: try_decode!(body_buf.decode_i8())
+            }.into(),
+
+            0x11 => Message::EventScroll {
+                x: try_decode!(body_buf.decode_u8()),
+                y: try_decode!(body_buf.decode_u8()),
+                direction: try_decode!(body_buf.decode_direction()),
+                delta: try_decode!(body_buf.decode_u8())
+            }.into(),
+
+            0x12 => Message::EventKeyDown {
+                char_code: try_decode!(body_buf.decode_u32()),
+                lwjgl_code: try_decode!(body_buf.decode_u32())
+            }.into(),
+
+            0x13 => Message::EventKeyUp {
+                char_code: try_decode!(body_buf.decode_u32()),
+                lwjgl_code: try_decode!(body_buf.decode_u32())
+            }.into(),
+
+            0x14 => Message::EventClipboard {
+                data: try_decode!(body_buf.decode_string())
+            }.into(),
+
+            0x15 => Message::Ping {
+                ping: try_decode!(body_buf.decode_u64())
+            }.into(),
+
+            0x16 => Message::Pong {
+                pong: try_decode!(body_buf.decode_u64())
+            }.into(),
+
 
             _ => DecodeResult::Err(DecodeError::UnknownMessage)
         }
