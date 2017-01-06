@@ -71,7 +71,7 @@ impl Canvas {
         if self.canvas.len() != 0 {
             return;
         }
-        for i in 0..self.resolution.area() {
+        for _ in 0..self.resolution.area() {
             self.canvas.push(Char::empty());
         }
     }

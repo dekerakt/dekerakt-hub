@@ -1,5 +1,5 @@
 use graphics::{Palette, ScreenResolution, ScreenState, PreciseMode,
-    Char, Canvas, Color};
+    Char, Color};
 
 use std::time::Duration;
 

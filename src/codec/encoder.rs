@@ -213,7 +213,7 @@ pub trait EncodeExt: Write {  // No error handling
             Message::EventScroll { x, y, direction, delta } => {
                 code = 0x11;
                 body.encode_u8(x);
-                body.encode_u8(x);
+                body.encode_u8(y);
                 body.encode_direction(direction);
                 body.encode_u8(delta);
             }
