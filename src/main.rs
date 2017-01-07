@@ -29,6 +29,7 @@ use argparse::{ArgumentParser, StoreConst, Store};
 
 use server::Server;
 
+
 fn parse_arguments() -> (slog::Level, SocketAddr) {
         let mut level = Level::Info;
         let mut addr = "127.0.0.1:8080".to_string();
