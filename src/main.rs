@@ -1,7 +1,3 @@
-extern crate futures;
-extern crate tokio_core;
-extern crate tokio_timer;
-
 #[macro_use(o, slog_log, slog_trace, slog_debug, slog_info, slog_warn,
     slog_error, slog_crit)]
 extern crate slog;
@@ -10,8 +6,9 @@ extern crate slog_scope;
 extern crate slog_term;
 
 extern crate unicode_width;
-extern crate byteorder;
 extern crate argparse;
+
+extern crate mio;
 
 mod graphics;
 mod message;
