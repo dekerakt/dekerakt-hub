@@ -121,7 +121,8 @@ pub enum ConnectionMode {
 pub enum ConnectionSide {
     OC = 0x00,
     External = 0x01,
-    Custom = 0xff
+    Custom = 0xfe,
+    None = 0xff
 }
 
 #[derive(Debug, Copy, Clone)]
