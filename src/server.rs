@@ -46,7 +46,7 @@ impl mio::Handler for Server {
                             &self.connections[token].socket,
                             token,
                             mio::EventSet::readable(),
-                            mio::PollOpt::edge() | mio::PollOpt::oneshot()).unwrap();
+                            mio::PollOpt::edge()).unwrap();
                     }
                     Ok(None) => {}
                     Err(e) => {
@@ -56,7 +56,7 @@ impl mio::Handler for Server {
                 }
             }
             _ => {
-                self.connections[token].read(event_loop, events);
+                self.connections[token].ready(event_loop, events);
 
                 if self.connections[token].is_closed() {
                     self.connections.remove(token);
@@ -71,6 +71,21 @@ struct Connection {
     token: mio::Token,
     state: State,
     side: ConnectionSide
+}
+
+impl Connection {
+    fn new(socket: TcpStream, token: mio::Token) -> Connection {
+        Connection {
+            socket: socket,
+            token: token,
+            state: State::Begin,
+            side: ConnectionSide::None
+        }
+    }
+
+    fn ready(socket: TcpStream, token: mio::Token) {
+        unimplemented!();
+    }
 }
 
 enum State {
