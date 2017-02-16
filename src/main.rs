@@ -9,11 +9,11 @@ extern crate unicode_width;
 extern crate argparse;
 
 extern crate mio;
+extern crate linked_hash_map;
 
 mod graphics;
 mod message;
 mod logger;
-mod codec;
 mod handler;
 mod store;
 mod server;
@@ -60,8 +60,5 @@ fn main() {
 
     let mut server = Server::new(addr);
 
-    match server.run() {
-        Err(e) => crit!("{}", e),
-        _ => {}
-    }
+    server.run();
 }

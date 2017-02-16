@@ -1,80 +1,104 @@
+use mio::*;
 use mio::tcp::*;
+use std::net::SocketAddr;
+use std::io::Error;
+
+use linked_hash_map::LinkedHashMap;
 
 use store::Store;
 use handler::Handler;
-use codec::Codec;
-use message::Message;
+use message::{Message, ConnectionSide};
 
-const SERVTOKEN: mio::Token = mio::Token(0);
+const SERVTOKEN: Token = Token(0);
 
-struct Server {
+type Conns = LinkedHashMap<Token, Connection>;
+
+pub struct Server {
     server: TcpListener,
-    connections: Slab<Connection>
+    connections: Conns,
+    events: Events,
+    poll: Poll,
 }
 
 impl Server {
-    fn new(address: SocketAddr) -> Server {
+    pub fn new(address: SocketAddr) -> Server {
         let server = TcpListener::bind(&address).unwrap();
-        let mut event_loop = mio::EventLoop::new().unwrap();
-        event_loop.register(&server, SERVER);
+        let poll = Poll::new().unwrap();
+        poll.register(&server, SERVTOKEN, Ready::readable(),
+                      PollOpt::edge()).unwrap();
+        let mut events = Events::with_capacity(8192);
 
-        let slab = Slab::new_starting_at(mio::Token(1), 8192);
+        let mut conns = Conns::new();
 
-        event_loop.run(&mut Server {
+        Server {
             server: server,
-            connections: slab
-        });
+            connections: conns,
+            events: events,
+            poll: poll,
+        }
     }
-}
 
-impl mio::Handler for Server {
-    type Timeout = ();
-    type Message = ();
+    pub fn run(&mut self) {
+        'event_loop: loop {
+            self.poll.poll(&mut self.events, None).unwrap();
 
-    fn ready(&mut self, event_loop: &mut mio::EventLoop<Server>, token: mio::Token, events: mio::EventSet) {
-        match token {
-            SERVER => {
-                assert!(events.is_readable());
+            for event in self.events.iter() {
+                match event.token() {
+                    SERVTOKEN => {
+                        assert!(event.kind().is_readable());
 
-                match self.server.accept() {
-                    Ok(Some(socket)) => {
-                        let token = self.connections
-                            .insert_with(|token| Connection::new(socket, token))
-                            .unwrap();
+                        match self.server.accept() {
+                            Ok((socket, addr)) => {
+                                let token: Token;
+                                {
+                                    token = Token(usize::from(*self.connections
+                                                              .back()
+                                                              .unwrap()
+                                                              .0) + 1);
+                                }
+                                let conn = Connection::new(socket, token);
+                                {
+                                    self.connections.insert(token, conn);
+                                }
 
-                        event_loop.register_opt(
-                            &self.connections[token].socket,
-                            token,
-                            mio::EventSet::readable(),
-                            mio::PollOpt::edge()).unwrap();
+                                self.poll.register(
+                                    &self.connections[&event.token()].socket,
+                                    token,
+                                    Ready::readable(),
+                                    PollOpt::edge()).unwrap();
+                            }
+                            Err(e) => {
+                                error!("accept errored: {}", e);
+                                break 'event_loop;
+                            }
+                        }
                     }
-                    Ok(None) => {}
-                    Err(e) => {
-                        error!("accept errored: {}", e);
-                        event_loop.shutdown();
-                    }
-                }
-            }
-            _ => {
-                self.connections[token].ready(event_loop, events);
+                    _ => {
+                        {
+                            let c = self.connections.get_mut(&event.token())
+                                .unwrap();
+                            c.ready(event.kind());
+                        }
 
-                if self.connections[token].is_closed() {
-                    self.connections.remove(token);
+                        if self.connections[&event.token()].is_closed() {
+                            self.connections.remove(&event.token());
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-struct Connection {
+pub struct Connection {
     socket: TcpStream,
-    token: mio::Token,
+    token: Token,
     state: State,
     side: ConnectionSide
 }
 
 impl Connection {
-    fn new(socket: TcpStream, token: mio::Token) -> Connection {
+    pub fn new(socket: TcpStream, token: Token) -> Connection {
         Connection {
             socket: socket,
             token: token,
@@ -83,14 +107,22 @@ impl Connection {
         }
     }
 
-    fn ready(socket: TcpStream, token: mio::Token) {
+   pub fn ready(&mut self, kind: Ready) {
         unimplemented!();
+    }
+
+    pub fn is_closed(&self) -> bool {
+        match self.state {
+            State::Closed => true,
+            _ => false
+        }
     }
 }
 
-enum State {
+pub enum State {
     Begin,
     AuthClient,
     InitialData,
-    Connected
+    Connected,
+    Closed
 }
