@@ -14,7 +14,6 @@ extern crate linked_hash_map;
 mod graphics;
 mod message;
 mod logger;
-mod handler;
 mod store;
 mod server;
 

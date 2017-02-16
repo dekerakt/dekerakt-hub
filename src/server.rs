@@ -1,13 +1,13 @@
 use mio::*;
 use mio::tcp::*;
+
 use std::net::SocketAddr;
-use std::io::Error;
+use std::cell::RefCell;
 
 use linked_hash_map::LinkedHashMap;
 
 use store::Store;
-use handler::Handler;
-use message::{Message, ConnectionSide};
+use message::*;
 
 const SERVTOKEN: Token = Token(0);
 
@@ -18,6 +18,7 @@ pub struct Server {
     connections: Conns,
     events: Events,
     poll: Poll,
+    store: Store,
 }
 
 impl Server {
@@ -27,14 +28,15 @@ impl Server {
         poll.register(&server, SERVTOKEN, Ready::readable(),
                       PollOpt::edge()).unwrap();
         let mut events = Events::with_capacity(8192);
-
         let mut conns = Conns::new();
+        let mut store = Store::new();
 
         Server {
             server: server,
             connections: conns,
             events: events,
             poll: poll,
+            store: store,
         }
     }
 
@@ -56,7 +58,7 @@ impl Server {
                                                               .unwrap()
                                                               .0) + 1);
                                 }
-                                let conn = Connection::new(socket, token);
+                                let conn = Connection::new(RefCell::new(*self), socket, token);
                                 {
                                     self.connections.insert(token, conn);
                                 }
@@ -94,16 +96,18 @@ pub struct Connection {
     socket: TcpStream,
     token: Token,
     state: State,
-    side: ConnectionSide
+    side: ConnectionSide,
+    server: RefCell<Server>
 }
 
 impl Connection {
-    pub fn new(socket: TcpStream, token: Token) -> Connection {
+    pub fn new(server: RefCell<Server>, socket: TcpStream, token: Token) -> Connection {
         Connection {
             socket: socket,
             token: token,
             state: State::Begin,
-            side: ConnectionSide::None
+            side: ConnectionSide::None,
+            server: server
         }
     }
 
@@ -117,12 +121,107 @@ impl Connection {
             _ => false
         }
     }
+
+    pub fn handle(&mut self, msg: Message) {
+        match msg {
+            Message::Error { description } => {}
+            Message::AuthClient {
+                user, password, connection_mode, connection_side, ping_interval
+            } => {
+                match self.state {
+                    State::AuthClient => {}
+                    _ => {
+                        return;
+                    }
+                }
+                if let Some(vertex) = self.server.borrow_mut().store.find_vertex_with_user_mut(user) {
+                    let doubling = match self.side {
+                        ConnectionSide::OC => {
+                            true
+                        }
+                        ConnectionSide::External => {
+                            match vertex.external {
+                                Some(..) => true,
+                                None => false
+                            }
+                        }
+                        _ => {
+                            unimplemented!();
+                        }
+                    };
+                    if doubling {
+                        self.send(Message::AuthServer {
+                            auth_result: AuthResult::VertexInUse,
+                            display_message: "".to_string()
+                        });
+                        self.close();
+                    } else {
+                        if vertex.password == password {
+                            vertex.external = Some(self.token);
+                            self.send(Message::AuthServer {
+                                auth_result: AuthResult::Authenticated,
+                                display_message: "".to_string()
+                            });
+                        } else {
+                            self.send(Message::AuthServer {
+                                auth_result: AuthResult::BadCredentials,
+                                display_message: "".to_string()
+                            });
+                            self.close();
+                        }
+                    }
+                } else {
+                    match self.side {
+                        ConnectionSide::External => {
+                            self.send(Message::AuthServer {
+                                auth_result: AuthResult::BadCredentials,
+                                display_message: "".to_string()
+                            });
+                            self.close();
+                        }
+                        ConnectionSide::OC => {
+                            match connection_mode {
+                                ConnectionMode::GpuKbd => {
+                                    self.send(Message::AuthServer {
+                                        auth_result: AuthResult::Authenticated,
+                                        display_message: "".to_string()
+                                    });
+                                    self.state = State::InitialData(user, password, connection_mode);
+                                }
+                                _ => {
+                                    self.send(Message::AuthServer {
+                                        auth_result: AuthResult::UnsupportedMode,
+                                        display_message: "".to_string()
+                                    });
+                                    self.close();
+                                }
+                            }
+                        }
+                        _ => {
+                            unimplemented!();
+                        }
+                    }
+                }
+            }
+            _ => {
+                unimplemented!();
+            }
+        }
+    }
+
+    pub fn close(&mut self) {
+        self.state = State::Closed;
+    }
+
+    pub fn send(&mut self, msg: Message) {
+        unimplemented!();
+    }
 }
 
 pub enum State {
     Begin,
     AuthClient,
-    InitialData,
+    InitialData(String, String, ConnectionMode),
     Connected,
     Closed
 }

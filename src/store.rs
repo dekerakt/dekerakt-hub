@@ -3,16 +3,40 @@ use mio;
 use graphics;
 use message;
 
-pub type Store = Vec<Vertex>;
+pub struct Store(Vec<Vertex>);
 
-struct Vertex {
-    opencomputers: mio::Token,
-    external: mio::Token,
-    palette: [graphics::Color; 16],
-    mode: message::ConnectionMode,
-    user: String,
-    password: String,
-    screen_state: graphics::ScreenState,
-    precise_mode: graphics::PreciseMode,
-    canvas: graphics::Canvas,
+impl Store {
+    pub fn new() -> Store {
+        Store(Vec::new())
+    }
+
+    pub fn find_vertex_with_user(&self, user: String) -> Option<&Vertex> {
+        for vertex in &self.0 {
+            if *vertex.user == user {
+                return Some(vertex);
+            }
+        }
+        return None
+    }
+
+    pub fn find_vertex_with_user_mut(&mut self, user: String) -> Option<&mut Vertex> {
+        for vertex in &mut self.0 {
+            if *vertex.user == user {
+                return Some(vertex);
+            }
+        }
+        return None
+    }
+}
+
+pub struct Vertex {
+    pub opencomputers: Option<mio::Token>,
+    pub external: Option<mio::Token>,
+    pub palette: [graphics::Color; 16],
+    pub mode: message::ConnectionMode,
+    pub user: String,
+    pub password: String,
+    pub screen_state: graphics::ScreenState,
+    pub precise_mode: graphics::PreciseMode,
+    pub canvas: graphics::Canvas,
 }
