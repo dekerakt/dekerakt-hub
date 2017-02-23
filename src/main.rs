@@ -14,7 +14,6 @@ extern crate linked_hash_map;
 mod graphics;
 mod message;
 mod logger;
-mod store;
 mod server;
 
 use std::process::exit;
