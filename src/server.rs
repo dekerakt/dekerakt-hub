@@ -153,8 +153,11 @@ impl Server {
 
 #[derive(Copy, Clone)]
 enum ClientState {
-    Ok,
+    Handshake,
+    Sleeping,
+    Working,
     Dead,
+
     Error,
 }
 
@@ -177,7 +180,7 @@ impl Client {
 
             read_buf: BytesMut::with_capacity(CONNECTION_READ_BUF_CAPACITY),
             write_buf: BytesMut::with_capacity(CONNECTION_WRITE_BUF_CAPACITY),
-            state: ClientState::Ok,
+            state: ClientState::Handshake,
         }
     }
 
@@ -216,6 +219,10 @@ impl Client {
         Ok(())
     }
 
+    fn auth(&mut self, _username: String, _password: String) {
+        unimplemented!()
+    }
+
     fn parse_messages(&mut self) {
         let mut error = None;
         loop {
@@ -238,7 +245,13 @@ impl Client {
 
     fn handle_message(&mut self, msg: Message) {
         info!(self.logger, "IN  {} message", msg);
-        error!(self.logger, "Messages handling unimplemented; ignoring");
+
+        match msg {
+            Message::Error(..) => self.error(ErrorKind::ServerMessage.into()),
+
+            Message::ClientAuth { username, password } => self.auth(username, password),
+            Message::ServerAuth(..) => self.error(ErrorKind::ServerMessage.into()),
+        }
     }
 
     fn send_message(&mut self, msg: Message) {

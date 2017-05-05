@@ -25,5 +25,10 @@ error_chain! {
             description("invalid token")
             display("invalid token ({:?})", t)
         }
+
+        ServerMessage {
+            description("server message")
+            display("server message")
+        }
     }
 }
