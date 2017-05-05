@@ -32,13 +32,13 @@ pub struct Server {
 impl Server {
     pub fn with_logger(logger: Logger, addr: &SocketAddr) -> Result<Server> {
         Ok(Server {
-            logger: logger,
-            socket: TcpListener::bind(addr)?,
-            poll: Poll::new()?,
+               logger: logger,
+               socket: TcpListener::bind(addr)?,
+               poll: Poll::new()?,
 
-            addr: addr.clone(),
-            connections: Slab::with_capacity(CONNECTIONS_CAPACITY),
-        })
+               addr: addr.clone(),
+               connections: Slab::with_capacity(CONNECTIONS_CAPACITY),
+           })
     }
 
     pub fn run(mut self) -> Result<()> {
@@ -62,7 +62,7 @@ impl Server {
     fn handle_event(&mut self, event: Event) -> Result<()> {
         match event.token() {
             SERVER_TOKEN => self.accept(),
-            _ => self.handle_client(event)
+            _ => self.handle_client(event),
         }
     }
 
@@ -78,12 +78,13 @@ impl Server {
             None => {
                 warn!(self.logger,
                       "No more space in the slab; reallocation unimplemented");
-                return Ok(());  // TODO: reallocate slab
+                return Ok(()); // TODO: reallocate slab
             }
         };
 
         let token = entry.index();
-        let logger = self.logger.new(o!("addr" => format!("{}", addr),
+        let logger = self.logger
+            .new(o!("addr" => format!("{}", addr),
                                         "token" => format!("{:?}", token)));
 
         let client = Client::with_logger(logger, socket, token);
@@ -99,12 +100,13 @@ impl Server {
     fn handle_client(&mut self, event: Event) -> Result<()> {
         let mut client = match self.connections.entry(event.token()) {
             Some(v) => v,
-            None => return Err(ErrorKind::InvalidToken(event.token()).into())
+            None => return Err(ErrorKind::InvalidToken(event.token()).into()),
         };
 
         let readiness = event.readiness();
 
-        if readiness.is_readable() {   // Important: first read, then write
+        if readiness.is_readable() {
+            // Important: first read, then write
             client.get_mut().readable()?;
         }
 
@@ -153,7 +155,7 @@ impl Server {
 enum ClientState {
     Ok,
     Dead,
-    Error
+    Error,
 }
 
 struct Client {
@@ -163,7 +165,7 @@ struct Client {
 
     read_buf: BytesMut,
     write_buf: BytesMut,
-    state: ClientState
+    state: ClientState,
 }
 
 impl Client {
@@ -175,7 +177,7 @@ impl Client {
 
             read_buf: BytesMut::with_capacity(CONNECTION_READ_BUF_CAPACITY),
             write_buf: BytesMut::with_capacity(CONNECTION_WRITE_BUF_CAPACITY),
-            state: ClientState::Ok
+            state: ClientState::Ok,
         }
     }
 
@@ -189,13 +191,12 @@ impl Client {
                 Ok(0) => {
                     trace!(self.logger, "Read 0 bytes; closing");
                     self.state = ClientState::Dead;
-                    return Ok(())
+                    return Ok(());
                 }
 
                 Ok(amt) => {
                     if amt > self.read_buf.remaining_mut() {
-                        warn!(self.logger,
-                              "Read buffer overflowed; reallocation required");
+                        warn!(self.logger, "Read buffer overflowed; reallocation required");
                         self.read_buf.reserve(amt);
                     }
 
@@ -203,7 +204,7 @@ impl Client {
                 }
 
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
-                Err(e) => return Err(e.into())
+                Err(e) => return Err(e.into()),
             }
         }
 
@@ -223,7 +224,7 @@ impl Client {
                 Ok(None) => break,
                 Err(e) => {
                     error = Some(e);
-                    break
+                    break;
                 }
             };
 
@@ -262,7 +263,7 @@ impl Client {
             match self.socket.write(&self.write_buf) {
                 Ok(amt) => self.write_buf.split_to(amt),
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
-                Err(e) => return Err(e.into())
+                Err(e) => return Err(e.into()),
             };
         }
 

@@ -24,9 +24,7 @@ pub fn decode_from_bytesmut<D: Decode>(buf: &mut BytesMut) -> Result<Option<D>> 
 pub enum Message {
     Error(Error),
 
-    ClientUsername(String),
-    ClientPassword(String),
-
+    ClientAuth { username: String, password: String },
     ServerAuth(AuthStatus),
 }
 
@@ -35,9 +33,7 @@ impl Message {
         match *self {
             Message::Error(_) => Opcode::Error,
 
-            Message::ClientUsername(_) => Opcode::ClientUsername,
-            Message::ClientPassword(_) => Opcode::ClientPassword,
-
+            Message::ClientAuth { .. } => Opcode::ClientAuth,
             Message::ServerAuth(_) => Opcode::ServerAuth,
         }
     }
@@ -48,10 +44,11 @@ impl fmt::Display for Message {
         match *self {
             Message::Error(ref e) => write!(fmt, "error[{}]", e),
 
-            Message::ClientUsername(ref s) => write!(fmt, "client-username[{}]", s),
-            Message::ClientPassword(_) => write!(fmt, "client-password"),
-
-            Message::ServerAuth(ref status) => write!(fmt, "server-auth[{}]", status)
+            Message::ClientAuth {
+                ref username,
+                ref password,
+            } => write!(fmt, "client-auth[{}, {}]", username, password),
+            Message::ServerAuth(ref status) => write!(fmt, "server-auth[{}]", status),
         }
     }
 }
@@ -68,7 +65,7 @@ impl fmt::Display for AuthStatus {
         match *self {
             AuthStatus::Ok => fmt.write_str("ok"),
             AuthStatus::UsernameUsed => fmt.write_str("username-used"),
-            AuthStatus::IncorrectPassword => fmt.write_str("incorrect-password")
+            AuthStatus::IncorrectPassword => fmt.write_str("incorrect-password"),
         }
     }
 }
@@ -77,9 +74,7 @@ impl fmt::Display for AuthStatus {
 pub enum Opcode {
     Error = 0x00,
 
-    ClientUsername = 0x01,
-    ClientPassword = 0x02,
-
+    ClientAuth = 0x01,
     ServerAuth = 0x7f,
 }
 
@@ -129,8 +124,13 @@ impl Encode for Message {
         match *self {
             Message::Error(ref e) => format!("{}", e).encode(buf),
 
-            Message::ClientUsername(ref s) => s.encode(buf),
-            Message::ClientPassword(ref s) => s.encode(buf),
+            Message::ClientAuth {
+                ref username,
+                ref password,
+            } => {
+                username.encode(buf);
+                password.encode(buf);
+            }
 
             Message::ServerAuth(ref a) => a.encode(buf),
         }
@@ -154,25 +154,24 @@ impl Decode for Message {
                 }
             }
 
-            Opcode::ClientUsername => {
-                match String::decode(buf) {
-                    Ok(Some(v)) => Ok(Some(Message::ClientUsername(v))),
-                    Ok(None) => Ok(None),
+            Opcode::ClientAuth => {
+                match String::decode(buf).and_then(|username| {
+                                                       String::decode(buf).map(|password| {
+                                                                                   (username,
+                                                                                    password)
+                                                                               })
+                                                   }) {
+                    Ok((Some(username), Some(password))) => {
+                        Ok(Some(Message::ClientAuth { username, password }))
+                    }
                     Err(e) => Err(e),
-                }
-            }
-
-            Opcode::ClientPassword => {
-                match String::decode(buf) {
-                    Ok(Some(v)) => Ok(Some(Message::ClientUsername(v))),
-                    Ok(None) => Ok(None),
-                    Err(e) => Err(e),
+                    _ => Ok(None),
                 }
             }
 
             Opcode::ServerAuth => {
-                match String::decode(buf) {
-                    Ok(Some(v)) => Ok(Some(Message::ClientUsername(v))),
+                match AuthStatus::decode(buf) {
+                    Ok(Some(v)) => Ok(Some(Message::ServerAuth(v))),
                     Ok(None) => Ok(None),
                     Err(e) => Err(e),
                 }
@@ -218,13 +217,10 @@ impl Decode for Opcode {
         match buf.get_u8() {
             0x00 => Ok(Some(Opcode::Error)),
 
-            0x01 => Ok(Some(Opcode::ClientUsername)),
-            0x02 => Ok(Some(Opcode::ClientPassword)),
-
+            0x01 => Ok(Some(Opcode::ClientAuth)),
             0x7f => Ok(Some(Opcode::ServerAuth)),
 
             b => Err(ErrorKind::UnknownOpcode(b).into()),
         }
     }
 }
-

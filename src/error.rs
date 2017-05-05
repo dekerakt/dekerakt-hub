@@ -32,4 +32,3 @@ error_chain! {
         }
     }
 }
-
