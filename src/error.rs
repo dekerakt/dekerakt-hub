@@ -21,11 +21,6 @@ error_chain! {
             display("unknown auth status ({})", b)
         }
 
-        UnknownErrorCode(b: u8) {
-            description("unknown error code")
-            display("unknown error code ({})", b)
-        }
-
         InvalidToken(t: Token) {
             description("invalid token")
             display("invalid token ({:?})", t)
