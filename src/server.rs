@@ -117,11 +117,13 @@ impl Server {
         match state {
             ClientState::Error if client.get().write_buf.is_empty() => {
                 client.get().deregister(&self.poll)?;
+                info!(client.get().logger, "Closed");
                 client.remove();
             }
 
             ClientState::Dead => {
                 client.get().deregister(&self.poll)?;
+                info!(client.get().logger, "Closed");
                 client.remove();
             }
 
@@ -177,14 +179,6 @@ impl Client {
         }
     }
 
-    fn write(&mut self, msg: Message) {
-        encode_to_bytesmut(&mut self.write_buf, msg);
-    }
-
-    fn error(&mut self, e: Error) {
-        self.write(Message::Error(e));
-        self.state = ClientState::Error;
-    }
 
     fn readable(&mut self) -> Result<()> {
         let mut chunk = [0; CONNECTION_READ_CHUNK_SIZE];
@@ -224,7 +218,7 @@ impl Client {
     fn parse_messages(&mut self) {
         let mut error = None;
         loop {
-            let _msg: Message = match decode_from_bytesmut(&mut self.read_buf) {
+            let msg: Message = match decode_from_bytesmut(&mut self.read_buf) {
                 Ok(Some(v)) => v,
                 Ok(None) => break,
                 Err(e) => {
@@ -232,11 +226,29 @@ impl Client {
                     break
                 }
             };
+
+            self.handle_message(msg);
         }
 
         if let Some(e) = error {
             self.error(e);
         }
+    }
+
+    fn handle_message(&mut self, msg: Message) {
+        info!(self.logger, "IN  {} message", msg);
+        error!(self.logger, "Messages handling unimplemented; ignoring");
+    }
+
+    fn send_message(&mut self, msg: Message) {
+        info!(self.logger, "OUT {} message", msg);
+        encode_to_bytesmut(&mut self.write_buf, msg);
+    }
+
+    fn error(&mut self, e: Error) {
+        warn!(self.logger, "Closing with error[{}]", e);
+        self.send_message(Message::Error(e));
+        self.state = ClientState::Error;
     }
 
     fn writable(&mut self) -> Result<()> {

@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::Cursor;
 
 use bytes::{self, BytesMut, Buf, BufMut};
@@ -42,12 +43,34 @@ impl Message {
     }
 }
 
+impl fmt::Display for Message {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Message::Error(ref e) => write!(fmt, "error[{}]", e),
+
+            Message::ClientUsername(ref s) => write!(fmt, "client-username[{}]", s),
+            Message::ClientPassword(_) => write!(fmt, "client-password"),
+
+            Message::ServerAuth(ref status) => write!(fmt, "server-auth[{}]", status)
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum AuthStatus {
     Ok = 0x00,
     UsernameUsed = 0x01,
     IncorrectPassword = 0x02,
+}
+
+impl fmt::Display for AuthStatus {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            AuthStatus::Ok => fmt.write_str("ok"),
+            AuthStatus::UsernameUsed => fmt.write_str("username-used"),
+            AuthStatus::IncorrectPassword => fmt.write_str("incorrect-password")
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
