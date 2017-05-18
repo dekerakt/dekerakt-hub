@@ -19,7 +19,7 @@ const EVENTS_CAPACITY: usize = 1024;
 const CONNECTIONS_CAPACITY: usize = 8192;
 const CONNECTION_READ_BUF_CAPACITY: usize = 1;
 const CONNECTION_READ_CHUNK_SIZE: usize = 4096;
-const CONNECTION_WRITE_BUF_CAPACITY: usize = 4096;
+const CONNECTION_WRITE_BUF_CAPACITY: usize = 64;
 
 pub struct Server {
     logger: Logger,
@@ -246,11 +246,21 @@ impl Client {
 
     fn handle_message(&mut self, msg: Message) {
         info!(self.logger, "IN  {}", msg);
+        self.send_message(Message::PairText("test test test test test test test test test test test test test test test test".into()));
     }
 
     fn send_message(&mut self, msg: Message) {
+        debug!(self.logger, "write buf: {}/{}", self.write_buf.len(), self.write_buf.capacity());
         info!(self.logger, "OUT {}", msg);
-        encode(msg, &mut self.write_buf);
+        match encode(msg, &mut self.write_buf) {
+            Err(e) => {
+                error!(self.logger, "Message encoding failed: {}; handling unimplemented", e);
+                self.state = ClientState::Error;
+            }
+
+            _ => {}
+        }
+        debug!(self.logger, "write buf: {}/{}", self.write_buf.len(), self.write_buf.capacity());
     }
 
     fn error(&mut self, e: Error) {
