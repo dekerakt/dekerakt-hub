@@ -155,11 +155,8 @@ impl Server {
 #[derive(Copy, Clone)]
 enum ClientState {
     Handshake,
-    Sleeping,
-    Working,
-    Dead,
-
     Error,
+    Dead,
 }
 
 struct Client {
@@ -218,10 +215,6 @@ impl Client {
         self.parse_messages();
 
         Ok(())
-    }
-
-    fn auth(&mut self, _username: String, _password: String) {
-        unimplemented!()
     }
 
     fn parse_messages(&mut self) {

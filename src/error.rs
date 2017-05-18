@@ -31,11 +31,6 @@ error_chain! {
             display("invalid token: {}", t.0)
         }
 
-        ServerMessage {
-            description("server message")
-            display("server message")
-        }
-
         BufferOverflow {
             description("buffer overflow")
             display("buffer overflow")

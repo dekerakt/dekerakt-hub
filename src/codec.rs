@@ -2,7 +2,7 @@ use std::str;
 use std::io::Cursor;
 
 use bytes::{Buf, BufMut, BytesMut, BigEndian};
-use error::{Error, ErrorKind, Result};
+use error::{ErrorKind, Result};
 use protocol::{Message, Opcode, HandshakeStatus, ConnectionStatus, DisconnectionStatus};
 
 macro_rules! try_decode {
