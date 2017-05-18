@@ -11,8 +11,9 @@ extern crate slog_term;
 extern crate slog_async;
 
 mod error;
-mod server;
 mod protocol;
+mod codec;
+mod server;
 
 use slog::{Logger, Level};
 use server::Server;

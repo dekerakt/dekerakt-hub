@@ -7,28 +7,38 @@ error_chain! {
 
     foreign_links {
         Io(::std::io::Error);
-        Utf8(::std::string::FromUtf8Error);
+        Utf8(::std::str::Utf8Error);
     }
 
     errors {
-        UnknownOpcode(b: u8) {
+        UnknownOpcode(c: u8) {
             description("unknown opcode")
-            display("unknown opcode ({})", b)
+            display("unknown opcode: {}", c)
         }
 
-        UnknownAuthStatus(b: u8) {
-            description("unknown auth status")
-            display("unknown auth status ({})", b)
+        UnknownHandshakeStatus(c: u8) {
+            description("unknown handshake status")
+            display("unknown handshake status: {}", c)
+        }
+
+        UnknownConnectionStatus(c: u8) {
+            description("unknown connection status")
+            display("unknown connection status: {}", c)
         }
 
         InvalidToken(t: Token) {
             description("invalid token")
-            display("invalid token ({:?})", t)
+            display("invalid token: {}", t.0)
         }
 
         ServerMessage {
             description("server message")
             display("server message")
+        }
+
+        BufferOverflow {
+            description("buffer overflow")
+            display("buffer overflow")
         }
     }
 }

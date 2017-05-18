@@ -9,7 +9,8 @@ use mio::net::{TcpListener, TcpStream};
 use slog::Logger;
 use slab::Slab;
 
-use protocol::{encode_to_bytesmut, decode_from_bytesmut, Message};
+use protocol::Message;
+use codec::{decode, encode};
 use error::{Error, ErrorKind, Result};
 
 const SERVER_TOKEN: Token = Token(::std::usize::MAX - 10);
@@ -226,7 +227,7 @@ impl Client {
     fn parse_messages(&mut self) {
         let mut error = None;
         loop {
-            let msg: Message = match decode_from_bytesmut(&mut self.read_buf) {
+            let msg: Message = match decode(&mut self.read_buf) {
                 Ok(Some(v)) => v,
                 Ok(None) => break,
                 Err(e) => {
@@ -245,21 +246,15 @@ impl Client {
 
     fn handle_message(&mut self, msg: Message) {
         info!(self.logger, "IN  {} message", msg);
-
-        match msg {
-            Message::Error(..) => self.error(ErrorKind::ServerMessage.into()),
-
-            Message::ClientAuth { username, password } => self.auth(username, password),
-            Message::ServerAuth(..) => self.error(ErrorKind::ServerMessage.into()),
-        }
     }
 
     fn send_message(&mut self, msg: Message) {
         info!(self.logger, "OUT {} message", msg);
-        encode_to_bytesmut(&mut self.write_buf, msg);
+        encode(msg, &mut self.write_buf);
     }
 
     fn error(&mut self, e: Error) {
+        let e = format!("{}", e);
         warn!(self.logger, "Closing with error[{}]", e);
         self.send_message(Message::Error(e));
         self.state = ClientState::Error;

@@ -1,40 +1,51 @@
 use std::fmt;
-use std::io::Cursor;
+use error::{Result, ErrorKind};
 
-use bytes::{self, BytesMut, Buf, BufMut};
-use error::{Result, Error, ErrorKind};
-
-type ByteOrder = bytes::BigEndian;
-
-pub fn encode_to_bytesmut<E: Encode>(buf: &mut BytesMut, e: E) {
-    e.encode(buf);
-}
-
-pub fn decode_from_bytesmut<D: Decode>(buf: &mut BytesMut) -> Result<Option<D>> {
-    let (result, len) = {
-        let mut buf = Cursor::new(&buf);
-        (D::decode(&mut buf), buf.position())
-    };
-
-    buf.split_to(len as usize);
-    result
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Message {
-    Error(Error),
+    Error(String),
+    CriticalError(String),
+    Ping(u64),
+    Pong(u64),
 
-    ClientAuth { username: String, password: String },
-    ServerAuth(AuthStatus),
+    ClientHandshake { username: String, password: String },
+    ClientConnect { username: String, password: String },
+    ClientDisconnect,
+    ClientGoodbye,
+
+    ServerHandshake(HandshakeStatus),
+    ServerConnect(ConnectionStatus),
+    ServerDisconnect(DisconnectionStatus),
+    ServerGoodbye,
+
+    PairPing(u64),
+    PairPong(u64),
+    PairText(String),
+    PairBinary(Vec<u8>),
 }
 
 impl Message {
-    fn opcode(&self) -> Opcode {
+    pub fn opcode(&self) -> Opcode {
         match *self {
-            Message::Error(_) => Opcode::Error,
+            Message::Error(..) => Opcode::Error,
+            Message::CriticalError(..) => Opcode::CriticalError,
+            Message::Ping(..) => Opcode::Ping,
+            Message::Pong(..) => Opcode::Pong,
 
-            Message::ClientAuth { .. } => Opcode::ClientAuth,
-            Message::ServerAuth(_) => Opcode::ServerAuth,
+            Message::ClientHandshake { .. } => Opcode::ClientHandshake,
+            Message::ClientConnect { .. } => Opcode::ClientConnect,
+            Message::ClientDisconnect => Opcode::ClientDisconnect,
+            Message::ClientGoodbye => Opcode::ClientGoodbye,
+
+            Message::ServerHandshake(..) => Opcode::ServerHandshake,
+            Message::ServerConnect(..) => Opcode::ServerConnect,
+            Message::ServerDisconnect(..) => Opcode::ServerDisconnect,
+            Message::ServerGoodbye => Opcode::ServerGoodbye,
+
+            Message::PairPing(..) => Opcode::PairPing,
+            Message::PairPong(..) => Opcode::PairPong,
+            Message::PairText(..) => Opcode::PairText,
+            Message::PairBinary(..) => Opcode::PairBinary,
         }
     }
 }
@@ -42,30 +53,31 @@ impl Message {
 impl fmt::Display for Message {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Message::Error(ref e) => write!(fmt, "error[{}]", e),
+            Message::Error(ref s) => write!(fmt, "error[{}]", s),
+            Message::CriticalError(ref s) => write!(fmt, "critical-error[{}]", s),
+            Message::Ping(t) => write!(fmt, "ping[{}]", t),
+            Message::Pong(t) => write!(fmt, "pong[{}]", t),
 
-            Message::ClientAuth {
-                ref username,
-                ref password,
-            } => write!(fmt, "client-auth[{}, {}]", username, password),
-            Message::ServerAuth(ref status) => write!(fmt, "server-auth[{}]", status),
-        }
-    }
-}
+            Message::ClientHandshake { ref username, .. } => {
+                write!(fmt, "client-handshake[{}]", username)
+            }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum AuthStatus {
-    Ok = 0x00,
-    UsernameUsed = 0x01,
-    IncorrectPassword = 0x02,
-}
+            Message::ClientConnect { ref username, .. } => {
+                write!(fmt, "client-connect[{}]", username)
+            }
 
-impl fmt::Display for AuthStatus {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            AuthStatus::Ok => fmt.write_str("ok"),
-            AuthStatus::UsernameUsed => fmt.write_str("username-used"),
-            AuthStatus::IncorrectPassword => fmt.write_str("incorrect-password"),
+            Message::ClientDisconnect => write!(fmt, "client-disconnect"),
+            Message::ClientGoodbye => write!(fmt, "client-goodbye"),
+
+            Message::ServerHandshake(s) => write!(fmt, "server-handshake[{}]", s),
+            Message::ServerConnect(s) => write!(fmt, "server-connect[{}]", s),
+            Message::ServerDisconnect(s) => write!(fmt, "server-disconnect[{}]", s),
+            Message::ServerGoodbye => write!(fmt, "server-goodbye"),
+
+            Message::PairPing(t) => write!(fmt, "pair-ping[{}]", t),
+            Message::PairPong(t) => write!(fmt, "pair-pong[{}]", t),
+            Message::PairText(..) => write!(fmt, "pair-text"),
+            Message::PairBinary(..) => write!(fmt, "pair-binary"),
         }
     }
 }
@@ -73,154 +85,153 @@ impl fmt::Display for AuthStatus {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Opcode {
     Error = 0x00,
+    CriticalError = 0x01,
+    Ping = 0x02,
+    Pong = 0x03,
 
-    ClientAuth = 0x01,
-    ServerAuth = 0x7f,
+    ClientHandshake = 0x40,
+    ClientConnect = 0x41,
+    ClientDisconnect = 0x42,
+    ClientGoodbye = 0x43,
+
+    ServerHandshake = 0x80,
+    ServerConnect = 0x81,
+    ServerDisconnect = 0x82,
+    ServerGoodbye = 0x83,
+
+    PairPing = 0xc0,
+    PairPong = 0xc1,
+    PairText = 0xc2,
+    PairBinary = 0xc3,
 }
 
-pub trait Encode {
-    fn encode<B: BufMut>(&self, buf: &mut B);
-}
+impl Opcode {
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
+    }
 
-pub trait Decode: Sized {
-    fn decode<B: Buf>(buf: &mut B) -> Result<Option<Self>>;
-}
+    pub fn from_u8(c: u8) -> Result<Opcode> {
+        match c {
+            0x00 => Ok(Opcode::Error),
+            0x01 => Ok(Opcode::CriticalError),
+            0x02 => Ok(Opcode::Ping),
+            0x03 => Ok(Opcode::Pong),
 
-impl Encode for String {
-    fn encode<B: BufMut>(&self, buf: &mut B) {
-        buf.put_u32::<ByteOrder>(self.len() as u32);
-        buf.put(self);
+            0x40 => Ok(Opcode::ClientHandshake),
+            0x41 => Ok(Opcode::ClientConnect),
+            0x42 => Ok(Opcode::ClientDisconnect),
+            0x43 => Ok(Opcode::ClientGoodbye),
+
+            0x80 => Ok(Opcode::ServerHandshake),
+            0x81 => Ok(Opcode::ServerConnect),
+            0x82 => Ok(Opcode::ServerDisconnect),
+            0x83 => Ok(Opcode::ServerGoodbye),
+
+            0xc0 => Ok(Opcode::PairPing),
+            0xc1 => Ok(Opcode::PairPong),
+            0xc2 => Ok(Opcode::PairText),
+            0xc3 => Ok(Opcode::PairBinary),
+
+            c => Err(ErrorKind::UnknownOpcode(c).into()),
+        }
     }
 }
 
-impl Decode for String {
-    fn decode<B: Buf>(buf: &mut B) -> Result<Option<Self>> {
-        if buf.remaining() < 4 {
-            return Ok(None);
-        }
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum HandshakeStatus {
+    Ok = 0x01,
+    UserExists = 0x02,
+}
 
-        let len = buf.get_u32::<ByteOrder>() as usize;
+impl HandshakeStatus {
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
+    }
 
-        if buf.remaining() < len {
-            return Ok(None);
-        }
+    pub fn from_u8(c: u8) -> Result<HandshakeStatus> {
+        match c {
+            0x01 => Ok(HandshakeStatus::Ok),
+            0x02 => Ok(HandshakeStatus::UserExists),
 
-        let mut v = vec![0; len];
-        buf.copy_to_slice(&mut v);
-        v.truncate(len);
-
-        match String::from_utf8(v) {
-            Ok(v) => Ok(Some(v)),
-            Err(e) => Err(e.into()),
+            c => Err(ErrorKind::UnknownHandshakeStatus(c).into()),
         }
     }
 }
 
-
-impl Encode for Message {
-    fn encode<B: BufMut>(&self, buf: &mut B) {
-        self.opcode().encode(buf);
-
+impl fmt::Display for HandshakeStatus {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Message::Error(ref e) => format!("{}", e).encode(buf),
-
-            Message::ClientAuth {
-                ref username,
-                ref password,
-            } => {
-                username.encode(buf);
-                password.encode(buf);
-            }
-
-            Message::ServerAuth(ref a) => a.encode(buf),
+            HandshakeStatus::Ok => fmt.write_str("ok"),
+            HandshakeStatus::UserExists => fmt.write_str("user-exists"),
         }
     }
 }
 
-impl Decode for Message {
-    fn decode<B: Buf>(buf: &mut B) -> Result<Option<Self>> {
-        let opcode = match Opcode::decode(buf) {
-            Ok(Some(v)) => v,
-            Ok(None) => return Ok(None),
-            Err(e) => return Err(e),
-        };
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum ConnectionStatus {
+    Ok = 0x01,
+    AlreadyConnected = 0x02,
+    PairEmployed = 0x03,
+    NoSuchUser = 0x04,
+    IncorrectPassword = 0x05,
+}
 
-        match opcode {
-            Opcode::Error => {
-                match String::decode(buf) {
-                    Ok(Some(v)) => Ok(Some(Message::Error(v.into()))),
-                    Ok(None) => Ok(None),
-                    Err(e) => Err(e),
-                }
-            }
+impl ConnectionStatus {
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
+    }
 
-            Opcode::ClientAuth => {
-                match String::decode(buf).and_then(|username| {
-                                                       String::decode(buf).map(|password| {
-                                                                                   (username,
-                                                                                    password)
-                                                                               })
-                                                   }) {
-                    Ok((Some(username), Some(password))) => {
-                        Ok(Some(Message::ClientAuth { username, password }))
-                    }
-                    Err(e) => Err(e),
-                    _ => Ok(None),
-                }
-            }
+    pub fn from_u8(c: u8) -> Result<ConnectionStatus> {
+        match c {
+            0x01 => Ok(ConnectionStatus::Ok),
+            0x02 => Ok(ConnectionStatus::AlreadyConnected),
+            0x03 => Ok(ConnectionStatus::PairEmployed),
+            0x04 => Ok(ConnectionStatus::NoSuchUser),
+            0x05 => Ok(ConnectionStatus::IncorrectPassword),
 
-            Opcode::ServerAuth => {
-                match AuthStatus::decode(buf) {
-                    Ok(Some(v)) => Ok(Some(Message::ServerAuth(v))),
-                    Ok(None) => Ok(None),
-                    Err(e) => Err(e),
-                }
-            }
+            c => Err(ErrorKind::UnknownConnectionStatus(c).into()),
         }
     }
 }
 
-
-impl Encode for AuthStatus {
-    fn encode<B: BufMut>(&self, buf: &mut B) {
-        buf.put_u8(*self as u8)
-    }
-}
-
-impl Decode for AuthStatus {
-    fn decode<B: Buf>(buf: &mut B) -> Result<Option<AuthStatus>> {
-        if !buf.has_remaining() {
-            return Ok(None);
-        }
-
-        match buf.get_u8() {
-            0x00 => Ok(Some(AuthStatus::Ok)),
-            0x01 => Ok(Some(AuthStatus::UsernameUsed)),
-            0x02 => Ok(Some(AuthStatus::IncorrectPassword)),
-            b => Err(ErrorKind::UnknownAuthStatus(b).into()),
+impl fmt::Display for ConnectionStatus {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ConnectionStatus::Ok => fmt.write_str("ok"),
+            ConnectionStatus::AlreadyConnected => fmt.write_str("already-connected"),
+            ConnectionStatus::PairEmployed => fmt.write_str("pair-employed"),
+            ConnectionStatus::NoSuchUser => fmt.write_str("no-such-user"),
+            ConnectionStatus::IncorrectPassword => fmt.write_str("incorrect-password"),
         }
     }
 }
 
-impl Encode for Opcode {
-    fn encode<B: BufMut>(&self, buf: &mut B) {
-        buf.put_u8(*self as u8)
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum DisconnectionStatus {
+    Ok = 0x01,
+    NotConnected = 0x02,
+}
+
+impl DisconnectionStatus {
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
+    }
+
+    pub fn from_u8(c: u8) -> Result<DisconnectionStatus> {
+        match c {
+            0x01 => Ok(DisconnectionStatus::Ok),
+            0x02 => Ok(DisconnectionStatus::NotConnected),
+
+            c => Err(ErrorKind::UnknownConnectionStatus(c).into()),
+        }
     }
 }
 
-impl Decode for Opcode {
-    fn decode<B: Buf>(buf: &mut B) -> Result<Option<Opcode>> {
-        if !buf.has_remaining() {
-            return Ok(None);
-        }
-
-        match buf.get_u8() {
-            0x00 => Ok(Some(Opcode::Error)),
-
-            0x01 => Ok(Some(Opcode::ClientAuth)),
-            0x7f => Ok(Some(Opcode::ServerAuth)),
-
-            b => Err(ErrorKind::UnknownOpcode(b).into()),
+impl fmt::Display for DisconnectionStatus {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            DisconnectionStatus::Ok => fmt.write_str("ok"),
+            DisconnectionStatus::NotConnected => fmt.write_str("not-connected"),
         }
     }
 }
