@@ -5,15 +5,17 @@ extern crate bytes;
 #[macro_use]
 extern crate error_chain;
 
+extern crate number_prefix;
+
 #[macro_use]
 extern crate slog;
 extern crate slog_term;
 extern crate slog_async;
 
 mod error;
-mod protocol;
 mod codec;
 mod server;
+mod protocol;
 
 use slog::{Logger, Level};
 use server::Server;

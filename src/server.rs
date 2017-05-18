@@ -245,11 +245,11 @@ impl Client {
     }
 
     fn handle_message(&mut self, msg: Message) {
-        info!(self.logger, "IN  {} message", msg);
+        info!(self.logger, "IN  {}", msg);
     }
 
     fn send_message(&mut self, msg: Message) {
-        info!(self.logger, "OUT {} message", msg);
+        info!(self.logger, "OUT {}", msg);
         encode(msg, &mut self.write_buf);
     }
 
