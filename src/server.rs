@@ -19,7 +19,7 @@ const EVENTS_CAPACITY: usize = 1024;
 const CONNECTIONS_CAPACITY: usize = 8192;
 const CONNECTION_READ_BUF_CAPACITY: usize = 1;
 const CONNECTION_READ_CHUNK_SIZE: usize = 4096;
-const CONNECTION_WRITE_BUF_CAPACITY: usize = 64;
+const CONNECTION_WRITE_BUF_CAPACITY: usize = 4096;
 
 pub struct Server {
     logger: Logger,
@@ -46,12 +46,12 @@ impl Server {
         self.register()?;
 
         let mut events = Events::with_capacity(EVENTS_CAPACITY);
-        info!(self.logger, "Listening on {}", self.addr);
+        info!(self.logger, "listening on {}", self.addr);
 
         loop {
             let amt = self.poll.poll(&mut events, None)?;
 
-            trace!(self.logger, "Handling {} events", amt);
+            trace!(self.logger, "handling {} events", amt);
 
             for event in events.iter() {
                 trace!(self.logger, " - {:?}", event);
@@ -78,7 +78,7 @@ impl Server {
             Some(v) => v,
             None => {
                 warn!(self.logger,
-                      "No more space in the slab; reallocation unimplemented");
+                      "no more space in the slab; reallocation unimplemented");
                 return Ok(()); // TODO: reallocate slab
             }
         };
@@ -91,7 +91,7 @@ impl Server {
         let client = Client::with_logger(logger, socket, token);
         client.register(&self.poll)?;
 
-        info!(client.logger, "Connected; waiting for a handshake");
+        info!(client.logger, "connected; waiting for a handshake");
 
         entry.insert(client);
 
@@ -120,13 +120,13 @@ impl Server {
         match state {
             ClientState::Error if client.get().write_buf.is_empty() => {
                 client.get().deregister(&self.poll)?;
-                info!(client.get().logger, "Closed");
+                info!(client.get().logger, "closed with error");
                 client.remove();
             }
 
             ClientState::Dead => {
                 client.get().deregister(&self.poll)?;
-                info!(client.get().logger, "Closed");
+                info!(client.get().logger, "closed");
                 client.remove();
             }
 
@@ -137,7 +137,7 @@ impl Server {
     }
 
     fn register(&self) -> Result<()> {
-        trace!(self.logger, "Registering server socket";
+        trace!(self.logger, "registering server socket";
                "token" => format!("{:?}", SERVER_TOKEN),
                "interest" => format!("{:?}", Ready::readable()),
                "opts" => format!("{:?}", PollOpt::edge()));
@@ -190,14 +190,14 @@ impl Client {
         loop {
             match self.socket.read(&mut chunk[..]) {
                 Ok(0) => {
-                    trace!(self.logger, "Read 0 bytes; closing");
+                    trace!(self.logger, "read 0 bytes; closing");
                     self.state = ClientState::Dead;
                     return Ok(());
                 }
 
                 Ok(amt) => {
                     if amt > self.read_buf.remaining_mut() {
-                        warn!(self.logger, "Read buffer overflowed; reallocation required");
+                        warn!(self.logger, "read buffer overflowed; reallocation required");
                         self.read_buf.reserve(amt);
                     }
 
@@ -211,7 +211,7 @@ impl Client {
 
         let len = self.read_buf.len() - start_len;
 
-        trace!(self.logger, "Read {} bytes", len);
+        trace!(self.logger, "read {} bytes", len);
         self.parse_messages();
 
         Ok(())
@@ -247,7 +247,7 @@ impl Client {
         info!(self.logger, "OUT {}", msg);
         match encode(msg, &mut self.write_buf) {
             Err(e) => {
-                error!(self.logger, "Message encoding failed: {}; handling unimplemented", e);
+                error!(self.logger, "message encoding failed: {}; handling unimplemented", e);
                 self.state = ClientState::Error;
             }
 
@@ -258,7 +258,7 @@ impl Client {
 
     fn error(&mut self, e: Error) {
         let e = format!("{}", e);
-        warn!(self.logger, "Closing with error[{}]", e);
+        warn!(self.logger, "closing with error[{}]", e);
         self.send_message(Message::Error(e));
         self.state = ClientState::Error;
     }
@@ -280,13 +280,13 @@ impl Client {
 
         let len = start_len - self.write_buf.len();
 
-        trace!(self.logger, "Wrote {} bytes", len);
+        trace!(self.logger, "wrote {} bytes", len);
 
         Ok(())
     }
 
     fn register(&self, poll: &Poll) -> Result<()> {
-        trace!(self.logger, "Registering client socket";
+        trace!(self.logger, "registering client socket";
                "token" => format!("{:?}", self.token),
                "interest" => format!("{:?}", Ready::readable() | Ready::writable()),
                "opts" => format!("{:?}", PollOpt::edge()));
@@ -300,7 +300,7 @@ impl Client {
     }
 
     fn deregister(&self, poll: &Poll) -> Result<()> {
-        trace!(self.logger, "Deregistering client socket");
+        trace!(self.logger, "deregistering client socket");
 
         poll.deregister(&self.socket)?;
 

@@ -22,18 +22,18 @@ use server::Server;
 
 fn main() {
     let addr = "127.0.0.1:8080".parse().unwrap();
-    let logger = root_logger(Level::Trace);
+    let logger = root_logger(Level::Warning);
 
     let server = match Server::with_logger(logger.clone(), &addr) {
         Ok(v) => v,
         Err(e) => {
-            crit!(logger, "Creating server failed: {}", e);
+            crit!(logger, "creating server failed: {}", e);
             return;
         }
     };
 
     if let Err(e) = server.run() {
-        crit!(logger, "Server crashed: {}", e);
+        crit!(logger, "server crashed: {}", e);
     }
 }
 
