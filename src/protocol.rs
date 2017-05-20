@@ -78,15 +78,19 @@ impl fmt::Display for Message {
             Message::PairPing(t) => write!(fmt, "pair-ping[{}]", t),
             Message::PairPong(t) => write!(fmt, "pair-pong[{}]", t),
 
-            Message::PairText(ref d) => match binary_prefix(d.len() as f32) {
-                Standalone(b) => write!(fmt, "pair-text[{}B]", b),
-                Prefixed(prefix, n) => write!(fmt, "pair-text[{}{}B]", n, prefix)
-            },
+            Message::PairText(ref d) => {
+                match binary_prefix(d.len() as f32) {
+                    Standalone(b) => write!(fmt, "pair-text[{}B]", b),
+                    Prefixed(prefix, n) => write!(fmt, "pair-text[{}{}B]", n, prefix),
+                }
+            }
 
-            Message::PairBinary(ref d) => match binary_prefix(d.len() as f32) {
-                Standalone(b) => write!(fmt, "pair-binary[{} B]", b),
-                Prefixed(prefix, n) => write!(fmt, "pair-text[{:.0} {}B]", n, prefix)
-            },
+            Message::PairBinary(ref d) => {
+                match binary_prefix(d.len() as f32) {
+                    Standalone(b) => write!(fmt, "pair-binary[{} B]", b),
+                    Prefixed(prefix, n) => write!(fmt, "pair-text[{:.0} {}B]", n, prefix),
+                }
+            }
         }
     }
 }

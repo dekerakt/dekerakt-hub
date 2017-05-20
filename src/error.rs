@@ -31,6 +31,11 @@ error_chain! {
             display("invalid token: {}", t.0)
         }
 
+        SpaceNeeded(n: usize) {
+            description("space needed")
+            display("space needed: {}", n)
+        }
+
         BufferOverflow {
             description("buffer overflow")
             display("buffer overflow")

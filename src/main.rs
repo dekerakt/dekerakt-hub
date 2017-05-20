@@ -22,7 +22,7 @@ use server::Server;
 
 fn main() {
     let addr = "127.0.0.1:8080".parse().unwrap();
-    let logger = root_logger(Level::Warning);
+    let logger = root_logger(Level::Trace);
 
     let server = match Server::with_logger(logger.clone(), &addr) {
         Ok(v) => v,

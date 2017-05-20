@@ -10,14 +10,16 @@ use slog::Logger;
 use slab::Slab;
 
 use protocol::Message;
-use codec::{decode, encode};
+use codec::{decode, encode, size};
 use error::{Error, ErrorKind, Result};
 
 const SERVER_TOKEN: Token = Token(::std::usize::MAX - 10);
 
 const EVENTS_CAPACITY: usize = 1024;
 const CONNECTIONS_CAPACITY: usize = 8192;
-const CONNECTION_READ_BUF_CAPACITY: usize = 1;
+
+const CONNECTION_READ_BUF_CAPACITY: usize = 4096;
+const CONNECTION_READ_BUF_MAX_CAPACITY: usize = 1048576;
 const CONNECTION_READ_CHUNK_SIZE: usize = 4096;
 const CONNECTION_WRITE_BUF_CAPACITY: usize = 4096;
 
@@ -197,8 +199,13 @@ impl Client {
 
                 Ok(amt) => {
                     if amt > self.read_buf.remaining_mut() {
-                        warn!(self.logger, "read buffer overflowed; reallocation required");
+                        trace!(self.logger, "reserving ~{} read buf bytes", amt);
                         self.read_buf.reserve(amt);
+                    }
+
+                    if self.read_buf.capacity() > CONNECTION_READ_BUF_MAX_CAPACITY {
+                        self.error(ErrorKind::BufferOverflow.into());
+                        return Ok(());
                     }
 
                     self.read_buf.put_slice(&chunk[..amt]);
@@ -239,26 +246,18 @@ impl Client {
 
     fn handle_message(&mut self, msg: Message) {
         info!(self.logger, "IN  {}", msg);
-        self.send_message(Message::PairText("test test test test test test test test test test test test test test test test".into()));
+        self.send_message(msg);
     }
 
     fn send_message(&mut self, msg: Message) {
-        debug!(self.logger, "write buf: {}/{}", self.write_buf.len(), self.write_buf.capacity());
         info!(self.logger, "OUT {}", msg);
-        match encode(msg, &mut self.write_buf) {
-            Err(e) => {
-                error!(self.logger, "message encoding failed: {}; handling unimplemented", e);
-                self.state = ClientState::Error;
-            }
-
-            _ => {}
-        }
-        debug!(self.logger, "write buf: {}/{}", self.write_buf.len(), self.write_buf.capacity());
+        self.write_buf.reserve(size(&msg));
+        encode(&msg, &mut self.write_buf).unwrap();
     }
 
     fn error(&mut self, e: Error) {
         let e = format!("{}", e);
-        warn!(self.logger, "closing with error[{}]", e);
+        error!(self.logger, "closing with error[{}]", e);
         self.send_message(Message::Error(e));
         self.state = ClientState::Error;
     }

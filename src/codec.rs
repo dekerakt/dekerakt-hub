@@ -165,7 +165,7 @@ pub fn decode(buf: &mut BytesMut) -> Result<Option<Message>> {
 impl Codec {
     fn encode_u8<B: BufMut>(&mut self, n: u8, buf: &mut B) -> Result<()> {
         if buf.remaining_mut() < 1 {
-            return Err(ErrorKind::BufferOverflow.into());
+            return Err(ErrorKind::SpaceNeeded(1).into());
         }
 
         buf.put_u8(n);
@@ -175,7 +175,7 @@ impl Codec {
 
     fn encode_u64<B: BufMut>(&mut self, n: u64, buf: &mut B) -> Result<()> {
         if buf.remaining_mut() < 8 {
-            return Err(ErrorKind::BufferOverflow.into());
+            return Err(ErrorKind::SpaceNeeded(8 - buf.remaining_mut()).into());
         }
 
         buf.put_u64::<ByteOrder>(n);
@@ -185,7 +185,7 @@ impl Codec {
 
     fn encode_bytes<B: BufMut>(&mut self, bytes: &[u8], buf: &mut B) -> Result<()> {
         if buf.remaining_mut() < bytes.len() + 4 {
-            return Err(ErrorKind::BufferOverflow.into());
+            return Err(ErrorKind::SpaceNeeded(bytes.len() + 4 - buf.remaining_mut()).into());
         }
 
         buf.put_u32::<ByteOrder>(bytes.len() as u32);
@@ -223,21 +223,27 @@ impl Codec {
         self.encode_u8(c.as_u8(), buf)
     }
 
-    fn encode_message<B: BufMut>(&mut self, message: Message, buf: &mut B) -> Result<()> {
+    fn encode_message<B: BufMut>(&mut self, message: &Message, buf: &mut B) -> Result<()> {
         self.encode_opcode(message.opcode(), buf)?;
 
-        match message {
-            Message::Error(s) => self.encode_string(&s, buf),
-            Message::CriticalError(s) => self.encode_string(&s, buf),
+        match *message {
+            Message::Error(ref s) => self.encode_string(&s, buf),
+            Message::CriticalError(ref s) => self.encode_string(&s, buf),
             Message::Ping(t) => self.encode_u64(t, buf),
             Message::Pong(t) => self.encode_u64(t, buf),
 
-            Message::ClientHandshake { username, password } => {
+            Message::ClientHandshake {
+                ref username,
+                ref password,
+            } => {
                 self.encode_string(&username, buf)?;
                 self.encode_string(&password, buf)
             }
 
-            Message::ClientConnect { username, password } => {
+            Message::ClientConnect {
+                ref username,
+                ref password,
+            } => {
                 self.encode_string(&username, buf)?;
                 self.encode_string(&password, buf)
             }
@@ -252,14 +258,60 @@ impl Codec {
 
             Message::PairPing(t) => self.encode_u64(t, buf),
             Message::PairPong(t) => self.encode_u64(t, buf),
-            Message::PairText(s) => self.encode_string(&s, buf),
-            Message::PairBinary(b) => self.encode_bytes(&b, buf),
+            Message::PairText(ref s) => self.encode_string(&s, buf),
+            Message::PairBinary(ref b) => self.encode_bytes(&b, buf),
         }
     }
 }
 
-pub fn encode(msg: Message, buf: &mut BytesMut) -> Result<()> {
+pub fn encode(msg: &Message, buf: &mut BytesMut) -> Result<()> {
     let mut codec = Codec;
     codec.encode_message(msg, buf)
 }
 
+impl Codec {
+    fn size_bytes(&self, b: &[u8]) -> usize {
+        4 + b.len()
+    }
+
+    fn size_string(&self, s: &str) -> usize {
+        4 + s.len()
+    }
+
+    fn size_message(&self, message: &Message) -> usize {
+        match *message {
+            Message::Error(ref s) => 1 + self.size_string(s),
+            Message::CriticalError(ref s) => 1 + self.size_string(s),
+            Message::Ping(..) => 9,
+            Message::Pong(..) => 9,
+
+            Message::ClientHandshake {
+                ref username,
+                ref password,
+            } => 1 + self.size_string(username) + self.size_string(password),
+
+            Message::ClientConnect {
+                ref username,
+                ref password,
+            } => 1 + self.size_string(username) + self.size_string(password),
+
+            Message::ClientDisconnect => 1,
+            Message::ClientGoodbye => 1,
+
+            Message::ServerHandshake(..) => 2,
+            Message::ServerConnect(..) => 2,
+            Message::ServerDisconnect(..) => 2,
+            Message::ServerGoodbye => 1,
+
+            Message::PairPing(..) => 9,
+            Message::PairPong(..) => 9,
+            Message::PairText(ref s) => 1 + self.size_string(s),
+            Message::PairBinary(ref b) => self.size_bytes(b),
+        }
+    }
+}
+
+pub fn size(msg: &Message) -> usize {
+    let codec = Codec;
+    codec.size_message(msg)
+}
