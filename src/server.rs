@@ -341,7 +341,7 @@ impl Client {
                 }
             }
 
-            _ => self.error("lul".into()),
+            _ => self.error(ErrorKind::AuthorizationRequired.into()),
         }
     }
 

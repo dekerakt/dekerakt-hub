@@ -40,5 +40,10 @@ error_chain! {
             description("buffer overflow")
             display("buffer overflow")
         }
+
+        AuthorizationRequired {
+            description("authorization required")
+            display("authorization required")
+        }
     }
 }
