@@ -5,7 +5,6 @@ use error::{Result, ErrorKind};
 #[derive(Debug, Clone)]
 pub enum Message {
     Error(String),
-    CriticalError(String),
     Ping(u64),
     Pong(u64),
 
@@ -29,7 +28,6 @@ impl Message {
     pub fn opcode(&self) -> Opcode {
         match *self {
             Message::Error(..) => Opcode::Error,
-            Message::CriticalError(..) => Opcode::CriticalError,
             Message::Ping(..) => Opcode::Ping,
             Message::Pong(..) => Opcode::Pong,
 
@@ -55,7 +53,6 @@ impl fmt::Display for Message {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Message::Error(ref s) => write!(fmt, "error[{}]", s),
-            Message::CriticalError(ref s) => write!(fmt, "critical-error[{}]", s),
             Message::Ping(t) => write!(fmt, "ping[{}]", t),
             Message::Pong(t) => write!(fmt, "pong[{}]", t),
 
@@ -98,9 +95,8 @@ impl fmt::Display for Message {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Opcode {
     Error = 0x00,
-    CriticalError = 0x01,
-    Ping = 0x02,
-    Pong = 0x03,
+    Ping = 0x01,
+    Pong = 0x02,
 
     ClientHandshake = 0x40,
     ClientConnect = 0x41,
@@ -126,9 +122,8 @@ impl Opcode {
     pub fn from_u8(c: u8) -> Result<Opcode> {
         match c {
             0x00 => Ok(Opcode::Error),
-            0x01 => Ok(Opcode::CriticalError),
-            0x02 => Ok(Opcode::Ping),
-            0x03 => Ok(Opcode::Pong),
+            0x01 => Ok(Opcode::Ping),
+            0x02 => Ok(Opcode::Pong),
 
             0x40 => Ok(Opcode::ClientHandshake),
             0x41 => Ok(Opcode::ClientConnect),
