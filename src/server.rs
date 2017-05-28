@@ -1,5 +1,8 @@
 use std::io::{self, Read, Write};
+use std::rc::Rc;
 use std::net::SocketAddr;
+use std::ops::{Deref, DerefMut};
+use std::cell::RefCell;
 
 use bytes::{BufMut, BytesMut};
 
@@ -9,7 +12,7 @@ use mio::net::{TcpListener, TcpStream};
 use slog::Logger;
 use slab::Slab;
 
-use protocol::Message;
+use protocol::{Message, HandshakeStatus};
 use codec::{decode, encode, size};
 use error::{Error, ErrorKind, Result};
 
@@ -23,13 +26,50 @@ const CONNECTION_READ_BUF_MAX_CAPACITY: usize = 1048576;
 const CONNECTION_READ_CHUNK_SIZE: usize = 4096;
 const CONNECTION_WRITE_BUF_CAPACITY: usize = 4096;
 
+#[derive(Debug)]
+struct Connections(Slab<Client, Token>);
+
+impl Connections {
+    fn new() -> Connections {
+        Connections(Slab::with_capacity(CONNECTIONS_CAPACITY))
+    }
+
+    fn is_username_unique(&self, new_username: &str) -> bool {
+        for ref item in self.iter() {
+            if let Some(ClientData { ref username, .. }) = item.data {
+                if new_username == username {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+}
+
+impl Deref for Connections {
+    type Target = Slab<Client, Token>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Connections {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 pub struct Server {
     logger: Logger,
     socket: TcpListener,
     poll: Poll,
 
     addr: SocketAddr,
-    connections: Slab<Client, Token>,
+
+    // Server is single-threaded, so Rc<RefCell<T>> is good enough
+    connections: Rc<RefCell<Connections>>,
 }
 
 impl Server {
@@ -40,7 +80,7 @@ impl Server {
                poll: Poll::new()?,
 
                addr: addr.clone(),
-               connections: Slab::with_capacity(CONNECTIONS_CAPACITY),
+               connections: Rc::new(RefCell::new(Connections::new()))
            })
     }
 
@@ -76,32 +116,41 @@ impl Server {
             Err(e) => return Err(e.into()),
         };
 
-        let entry = match self.connections.vacant_entry() {
-            Some(v) => v,
-            None => {
-                warn!(self.logger,
-                      "no more space in the slab; reallocation unimplemented");
-                return Ok(()); // TODO: reallocate slab
-            }
-        };
+        let connections = self.connections.clone();
 
-        let token = entry.index();
-        let logger = self.logger
-            .new(o!("addr" => format!("{}", addr),
-                                        "token" => format!("{:?}", token)));
+        {
+            let mut connections_borrow = self.connections.borrow_mut();
+            let entry = match connections_borrow.vacant_entry() {
+                Some(v) => v,
+                None => {
+                    warn!(self.logger,
+                          "no more space in the slab; reallocation unimplemented");
+                    return Ok(()); // TODO: reallocate slab
+                }
+            };
 
-        let client = Client::with_logger(logger, socket, token);
-        client.register(&self.poll)?;
+            let token = entry.index();
+            let logger = self.logger
+                .new(o!("addr" => format!("{}", addr),
+                        "token" => format!("{:?}", token)));
 
-        info!(client.logger, "connected; waiting for a handshake");
+            let client = Client::with_logger(logger, socket, token, connections);
+            client.register(&self.poll)?;
 
-        entry.insert(client);
+            info!(client.logger, "connected; waiting for a handshake");
+
+            entry.insert(client);
+        }
 
         Ok(())
     }
 
     fn handle_client(&mut self, event: Event) -> Result<()> {
-        let mut client = match self.connections.entry(event.token()) {
+        let mut connections = unsafe {
+            self.connections.as_ptr().as_mut().unwrap()
+        };
+
+        let mut client = match connections.entry(event.token()) {
             Some(v) => v,
             None => return Err(ErrorKind::InvalidToken(event.token()).into()),
         };
@@ -154,13 +203,21 @@ impl Server {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 enum ClientState {
     Handshake,
+    Pairing,
     Error,
     Dead,
 }
 
+#[derive(Debug, Clone)]
+struct ClientData {
+    username: String,
+    password: String,
+}
+
+#[derive(Debug)]
 struct Client {
     logger: Logger,
     socket: TcpStream,
@@ -168,11 +225,18 @@ struct Client {
 
     read_buf: BytesMut,
     write_buf: BytesMut,
+
+    connections: Rc<RefCell<Connections>>,
     state: ClientState,
+    data: Option<ClientData>,
 }
 
 impl Client {
-    fn with_logger(logger: Logger, socket: TcpStream, token: Token) -> Client {
+    fn with_logger(logger: Logger,
+                   socket: TcpStream,
+                   token: Token,
+                   connections: Rc<RefCell<Connections>>)
+                   -> Client {
         Client {
             logger: logger,
             socket: socket,
@@ -180,7 +244,10 @@ impl Client {
 
             read_buf: BytesMut::with_capacity(CONNECTION_READ_BUF_CAPACITY),
             write_buf: BytesMut::with_capacity(CONNECTION_WRITE_BUF_CAPACITY),
+
+            connections: connections,
             state: ClientState::Handshake,
+            data: None,
         }
     }
 
@@ -246,7 +313,36 @@ impl Client {
 
     fn handle_message(&mut self, msg: Message) {
         info!(self.logger, "IN  {}", msg);
-        self.send_message(msg);
+
+        match self.state {
+            ClientState::Handshake => self.handle_handshake_message(msg),
+            _ => unreachable!(),
+        }
+    }
+
+    fn handle_handshake_message(&mut self, msg: Message) {
+        match msg {
+            Message::ClientHandshake { username, password } => {
+                let username_is_unique = {
+                    let connections = self.connections.borrow();
+                    connections.is_username_unique(&username)
+                };
+
+                if username_is_unique {
+                    info!(self.logger, "handshake ok"; "username" => &username);
+
+                    self.data = Some(ClientData { username, password });
+                    self.state = ClientState::Pairing;
+
+                    self.send_message(Message::ServerHandshake(HandshakeStatus::Ok));
+                } else {
+                    error!(self.logger, "handshake failed: user exists"; "username" => username);
+                    self.send_message(Message::ServerHandshake(HandshakeStatus::UserExists));
+                }
+            }
+
+            _ => self.error("lul".into()),
+        }
     }
 
     fn send_message(&mut self, msg: Message) {
