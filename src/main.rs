@@ -15,6 +15,7 @@ extern crate slog_async;
 mod error;
 mod codec;
 mod server;
+mod config;
 mod clients;
 mod protocol;
 
