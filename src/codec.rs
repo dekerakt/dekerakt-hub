@@ -93,11 +93,6 @@ impl Codec {
 
         match opcode {
             Opcode::Error => Ok(Some(Message::Error(try_decode!(self.decode_string(buf))))),
-
-            Opcode::CriticalError => {
-                Ok(Some(Message::CriticalError(try_decode!(self.decode_string(buf)))))
-            }
-
             Opcode::Ping => Ok(Some(Message::Ping(try_decode!(self.decode_u64(buf))))),
             Opcode::Pong => Ok(Some(Message::Pong(try_decode!(self.decode_u64(buf))))),
 
@@ -228,7 +223,6 @@ impl Codec {
 
         match *message {
             Message::Error(ref s) => self.encode_string(&s, buf),
-            Message::CriticalError(ref s) => self.encode_string(&s, buf),
             Message::Ping(t) => self.encode_u64(t, buf),
             Message::Pong(t) => self.encode_u64(t, buf),
 
@@ -281,7 +275,6 @@ impl Codec {
     fn size_message(&self, message: &Message) -> usize {
         match *message {
             Message::Error(ref s) => 1 + self.size_string(s),
-            Message::CriticalError(ref s) => 1 + self.size_string(s),
             Message::Ping(..) => 9,
             Message::Pong(..) => 9,
 
