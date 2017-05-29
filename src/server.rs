@@ -12,54 +12,20 @@ use mio::net::{TcpListener, TcpStream};
 use slog::Logger;
 use slab::Slab;
 
-use protocol::{Message, HandshakeStatus};
 use codec::{decode, encode, size};
 use error::{Error, ErrorKind, Result};
+use clients::Clients;
+use protocol::{Message, HandshakeStatus};
 
 const SERVER_TOKEN: Token = Token(::std::usize::MAX - 10);
 
 const EVENTS_CAPACITY: usize = 1024;
-const CONNECTIONS_CAPACITY: usize = 8192;
+pub const CONNECTIONS_CAPACITY: usize = 8192;
 
 const CONNECTION_READ_BUF_CAPACITY: usize = 4096;
 const CONNECTION_READ_BUF_MAX_CAPACITY: usize = 1048576;
 const CONNECTION_READ_CHUNK_SIZE: usize = 4096;
 const CONNECTION_WRITE_BUF_CAPACITY: usize = 4096;
-
-#[derive(Debug)]
-struct Connections(Slab<Client, Token>);
-
-impl Connections {
-    fn new() -> Connections {
-        Connections(Slab::with_capacity(CONNECTIONS_CAPACITY))
-    }
-
-    fn is_username_unique(&self, new_username: &str) -> bool {
-        for ref item in self.iter() {
-            if let Some(ClientData { ref username, .. }) = item.data {
-                if new_username == username {
-                    return false;
-                }
-            }
-        }
-
-        true
-    }
-}
-
-impl Deref for Connections {
-    type Target = Slab<Client, Token>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Connections {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 pub struct Server {
     logger: Logger,
@@ -69,7 +35,7 @@ pub struct Server {
     addr: SocketAddr,
 
     // Server is single-threaded, so Rc<RefCell<T>> is good enough
-    connections: Rc<RefCell<Connections>>,
+    connections: Rc<RefCell<Clients>>,
 }
 
 impl Server {
@@ -80,7 +46,7 @@ impl Server {
                poll: Poll::new()?,
 
                addr: addr.clone(),
-               connections: Rc::new(RefCell::new(Connections::new()))
+               connections: Rc::new(RefCell::new(Clients::new()))
            })
     }
 
@@ -212,13 +178,13 @@ enum ClientState {
 }
 
 #[derive(Debug, Clone)]
-struct ClientData {
+pub struct ClientData {
     username: String,
     password: String,
 }
 
 #[derive(Debug)]
-struct Client {
+pub struct Client {
     logger: Logger,
     socket: TcpStream,
     token: Token,
@@ -226,16 +192,16 @@ struct Client {
     read_buf: BytesMut,
     write_buf: BytesMut,
 
-    connections: Rc<RefCell<Connections>>,
+    connections: Rc<RefCell<Clients>>,
     state: ClientState,
-    data: Option<ClientData>,
+    pub data: Option<ClientData>,
 }
 
 impl Client {
     fn with_logger(logger: Logger,
                    socket: TcpStream,
                    token: Token,
-                   connections: Rc<RefCell<Connections>>)
+                   connections: Rc<RefCell<Clients>>)
                    -> Client {
         Client {
             logger: logger,
